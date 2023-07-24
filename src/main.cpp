@@ -1,0 +1,50 @@
+/*
+ * candle-dribbler - ESP32 Zigbee light controller
+ * Copyright 2023  Simon Arlott
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <memory>
+
+#include <esp_err.h>
+#include <nvs_flash.h>
+
+#include "nutt/device.h"
+#include "nutt/light.h"
+
+using namespace nutt;
+
+#ifndef NUTT_MAX_LIGHTS
+static constexpr const size_t MAX_LIGHTS = 4;
+#else
+static constexpr const size_t MAX_LIGHTS = NUTT_MAX_LIGHTS;
+#endif
+
+static std::unique_ptr<Device> device;
+
+extern "C" void app_main() {
+	ESP_ERROR_CHECK(nvs_flash_init());
+
+	device = std::make_unique<Device>();
+
+	if (MAX_LIGHTS >= 1) std::make_shared<Light>(1, 3, 18)->attach(*device);
+	if (MAX_LIGHTS >= 2) std::make_shared<Light>(2, 2, 19)->attach(*device);
+	if (MAX_LIGHTS >= 3) std::make_shared<Light>(3, 11, 20)->attach(*device);
+	if (MAX_LIGHTS >= 4) std::make_shared<Light>(4, 10, 21)->attach(*device);
+	if (MAX_LIGHTS >= 5) std::make_shared<Light>(5, 1, 22)->attach(*device);
+	if (MAX_LIGHTS >= 6) std::make_shared<Light>(6, 0, 23)->attach(*device);
+
+	device->start();
+}

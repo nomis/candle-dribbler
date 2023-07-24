@@ -1,0 +1,15 @@
+{
+	"C_Cpp.default.cppStandard": "c++17",
+	"C_Cpp.default.cStandard": "c11",
+	"C_Cpp.default.includePath": [
+		"${workspaceFolder}/managed_components/espressif__esp-zboss-lib/include",
+		"${workspaceFolder}/managed_components/espressif__esp-zigbee-lib/include",
+		"${workspaceFolder}/build/config",
+		"${workspaceFolder}/src",
+	],
+	"C_Cpp.default.defines": [
+	],
+	"C_Cpp.default.mergeConfigurations": true,
+	"editor.detectIndentation": false,
+	"editor.insertSpaces": false
+}
