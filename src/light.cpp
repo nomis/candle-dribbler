@@ -116,6 +116,12 @@ StatusEndpoint::StatusEndpoint(Light &light)
 }
 
 void StatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_on_off_cluster_cfg_t light_cfg = {
+		.on_off = 0,
+	};
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
+		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE));
 }
 
 TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
