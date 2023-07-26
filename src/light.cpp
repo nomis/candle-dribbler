@@ -22,23 +22,21 @@
 #include <esp_log.h>
 #include <ha/esp_zigbee_ha_standard.h>
 
-#include <memory>
-
 namespace nutt {
 
 Light::Light(size_t index, int switch_pin, int relay_pin)
 		: index_(index), switch_pin_(switch_pin), relay_pin_(relay_pin),
-		primary_ep_(std::make_shared<light::PrimaryEndpoint>(*this)),
-		status_ep_(std::make_shared<light::StatusEndpoint>(*this)) {
+		primary_ep_(*new light::PrimaryEndpoint{*this}),
+		status_ep_(*new light::StatusEndpoint{*this}) {
 }
 
 void Light::attach(Device &device) {
-	device.add(shared_from_this(), {
+	device.add(*this, {
 		primary_ep_,
-		std::make_shared<light::SecondaryEndpoint>(*this),
+		*new light::SecondaryEndpoint{*this},
 		status_ep_,
-		std::make_shared<light::TemporaryEnableEndpoint>(*this),
-		std::make_shared<light::PersistentEnableEndpoint>(*this)
+		*new light::TemporaryEnableEndpoint{*this},
+		*new light::PersistentEnableEndpoint{*this},
 	});
 }
 

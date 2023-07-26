@@ -20,21 +20,24 @@
 
 #include <esp_err.h>
 
+#include <functional>
+#include <vector>
+
 namespace nutt {
 
-Device::Device() : zigbee_("uuid.uk", "candle-dribbler") {
+Device::Device() : zigbee_(*new ZigbeeDevice{"uuid.uk", "candle-dribbler"}) {
 }
 
-void Device::add(std::shared_ptr<Light> light, std::vector<std::shared_ptr<ZigbeeEndpoint>> &&endpoints) {
+void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
 	lights_.emplace_back(light);
 
 	for (auto ep : endpoints)
-		zigbee_.add(std::move(ep));
+		zigbee_.add(ep);
 }
 
 void Device::start() {
 	// TODO move this to the start of the endpoint list
-	zigbee_.add(std::make_shared<IdentifyEndpoint>());
+	zigbee_.add(*new IdentifyEndpoint{});
 	zigbee_.start();
 }
 

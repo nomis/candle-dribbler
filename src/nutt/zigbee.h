@@ -20,7 +20,6 @@
 
 #include <esp_zigbee_core.h>
 
-#include <memory>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -45,14 +44,14 @@ private:
 	std::vector<char> value_;
 };
 
-class ZigbeeDevice: public std::enable_shared_from_this<ZigbeeDevice> {
+class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 
 public:
 	ZigbeeDevice(const std::string_view manufacturer, const std::string_view model);
-	~ZigbeeDevice() = default;
+	~ZigbeeDevice() = delete;
 
-	void add(std::shared_ptr<ZigbeeEndpoint> endpoint);
+	void add(ZigbeeEndpoint &endpoint);
 	void start();
 
 private:
@@ -71,13 +70,13 @@ private:
 	uint8_t power_source_{4}; /* DC */
 	esp_zb_attribute_list_t *basic_cluster_{nullptr};
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
-	std::unordered_map<ep_id_t,std::shared_ptr<ZigbeeEndpoint>> endpoints_;
+	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
 };
 
-class ZigbeeEndpoint: public std::enable_shared_from_this<ZigbeeEndpoint> {
+class ZigbeeEndpoint {
 protected:
 	ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id);
-	virtual ~ZigbeeEndpoint() = default;
+	~ZigbeeEndpoint() = default;
 
 public:
 	inline ep_id_t id() const { return id_; };

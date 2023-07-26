@@ -18,7 +18,7 @@
 
 #pragma once
 
-#include <memory>
+#include <functional>
 #include <vector>
 
 #include "zigbee.h"
@@ -30,20 +30,20 @@ class Light;
 class Device {
 public:
 	Device();
-	~Device() = default;
+	~Device() = delete;
 
-	void add(std::shared_ptr<Light> light, std::vector<std::shared_ptr<ZigbeeEndpoint>> &&endpoints);
+	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
 
 private:
-	ZigbeeDevice zigbee_;
-	std::vector<std::shared_ptr<Light>> lights_;
+	ZigbeeDevice &zigbee_;
+	std::vector<std::reference_wrapper<Light>> lights_;
 };
 
 class IdentifyEndpoint: public ZigbeeEndpoint {
 public:
 	IdentifyEndpoint();
-	~IdentifyEndpoint() = default;
+	~IdentifyEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 

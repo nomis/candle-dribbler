@@ -18,7 +18,6 @@
 
 #pragma once
 
-#include <memory>
 #include <vector>
 
 #include "device.h"
@@ -33,7 +32,7 @@ namespace light {
 class PrimaryEndpoint: public ZigbeeEndpoint {
 public:
 	PrimaryEndpoint(Light &light);
-	~PrimaryEndpoint() = default;
+	~PrimaryEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 
@@ -48,7 +47,7 @@ private:
 class SecondaryEndpoint: public ZigbeeEndpoint {
 public:
 	SecondaryEndpoint(Light &light);
-	~SecondaryEndpoint() = default;
+	~SecondaryEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 
@@ -63,7 +62,7 @@ private:
 class StatusEndpoint: public ZigbeeEndpoint {
 public:
 	StatusEndpoint(Light &light);
-	~StatusEndpoint() = default;
+	~StatusEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 
@@ -76,7 +75,7 @@ private:
 class TemporaryEnableEndpoint: public ZigbeeEndpoint {
 public:
 	TemporaryEnableEndpoint(Light &light);
-	~TemporaryEnableEndpoint() = default;
+	~TemporaryEnableEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 
@@ -91,7 +90,7 @@ private:
 class PersistentEnableEndpoint: public ZigbeeEndpoint {
 public:
 	PersistentEnableEndpoint(Light &light);
-	~PersistentEnableEndpoint() = default;
+	~PersistentEnableEndpoint() = delete;
 
 	esp_zb_cluster_list_t* cluster_list() override;
 
@@ -105,10 +104,10 @@ private:
 
 } // namespace light
 
-class Light: public std::enable_shared_from_this<Light> {
+class Light {
 public:
 	Light(size_t index, int switch_pin_, int relay_pin_);
-	~Light() = default;
+	~Light() = delete;
 
 	inline size_t index() const { return index_; }
 
@@ -125,8 +124,8 @@ private:
 	size_t index_;
 	int switch_pin_;
 	int relay_pin_;
-	std::shared_ptr<light::PrimaryEndpoint> primary_ep_;
-	std::shared_ptr<light::StatusEndpoint> status_ep_;
+	light::PrimaryEndpoint &primary_ep_;
+	light::StatusEndpoint &status_ep_;
 };
 
 } // namespace nutt

@@ -26,7 +26,6 @@
 #include <esp_zigbee_core.h>
 
 #include <algorithm>
-#include <memory>
 #include <string_view>
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
@@ -82,15 +81,15 @@ ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::strin
 	endpoint_list_ = esp_zb_ep_list_create();
 }
 
-void ZigbeeDevice::add(std::shared_ptr<ZigbeeEndpoint> endpoint) {
-	if (endpoints_.emplace(endpoint->id(), endpoint).second) {
-		auto *cluster_list = endpoint->cluster_list();
+void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
+	if (endpoints_.emplace(endpoint.id(), endpoint).second) {
+		auto *cluster_list = endpoint.cluster_list();
 
 		esp_zb_cluster_list_add_basic_cluster(cluster_list, basic_cluster_,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
 
 		esp_zb_ep_list_add_ep(endpoint_list_, cluster_list,
-			endpoint->id(), endpoint->profile_id(), endpoint->device_id());
+			endpoint.id(), endpoint.profile_id(), endpoint.device_id());
 	}
 }
 
@@ -121,7 +120,7 @@ uint8_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, u
 	auto it = endpoints_.find(endpoint_id);
 
 	if (it != endpoints_.end()) {
-		return it->second->set_attr_value(cluster_id, attr_id, value);
+		return it->second.set_attr_value(cluster_id, attr_id, value);
 	} else {
 		return -1;
 	}
