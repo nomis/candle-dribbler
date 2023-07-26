@@ -32,7 +32,7 @@ namespace light {
 
 class PrimaryEndpoint: public ZigbeeEndpoint {
 public:
-	PrimaryEndpoint(std::shared_ptr<Light> light);
+	PrimaryEndpoint(Light &light);
 	~PrimaryEndpoint() = default;
 
 	esp_zb_cluster_list_t* cluster_list() override;
@@ -42,12 +42,12 @@ public:
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 10;
 
-	std::shared_ptr<Light> light_;
+	Light &light_;
 };
 
 class SecondaryEndpoint: public ZigbeeEndpoint {
 public:
-	SecondaryEndpoint(std::shared_ptr<Light> light);
+	SecondaryEndpoint(Light &light);
 	~SecondaryEndpoint() = default;
 
 	esp_zb_cluster_list_t* cluster_list() override;
@@ -57,12 +57,12 @@ public:
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 20;
 
-	std::shared_ptr<Light> light_;
+	Light &light_;
 };
 
 class StatusEndpoint: public ZigbeeEndpoint {
 public:
-	StatusEndpoint(std::shared_ptr<Light> light);
+	StatusEndpoint(Light &light);
 	~StatusEndpoint() = default;
 
 	esp_zb_cluster_list_t* cluster_list() override;
@@ -70,12 +70,12 @@ public:
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 30;
 
-	std::shared_ptr<Light> light_;
+	Light &light_;
 };
 
 class TemporaryEnableEndpoint: public ZigbeeEndpoint {
 public:
-	TemporaryEnableEndpoint(std::shared_ptr<Light> light);
+	TemporaryEnableEndpoint(Light &light);
 	~TemporaryEnableEndpoint() = default;
 
 	esp_zb_cluster_list_t* cluster_list() override;
@@ -85,12 +85,12 @@ public:
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 40;
 
-	std::shared_ptr<Light> light_;
+	Light &light_;
 };
 
 class PersistentEnableEndpoint: public ZigbeeEndpoint {
 public:
-	PersistentEnableEndpoint(std::shared_ptr<Light> light);
+	PersistentEnableEndpoint(Light &light);
 	~PersistentEnableEndpoint() = default;
 
 	esp_zb_cluster_list_t* cluster_list() override;
@@ -100,7 +100,7 @@ public:
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 50;
 
-	std::shared_ptr<Light> light_;
+	Light &light_;
 };
 
 } // namespace light
@@ -126,10 +126,7 @@ private:
 	int switch_pin_;
 	int relay_pin_;
 	std::shared_ptr<light::PrimaryEndpoint> primary_ep_;
-	std::shared_ptr<light::SecondaryEndpoint> secondary_ep_;
 	std::shared_ptr<light::StatusEndpoint> status_ep_;
-	std::shared_ptr<light::TemporaryEnableEndpoint> temporary_enable_ep_;
-	std::shared_ptr<light::PersistentEnableEndpoint> persistent_enable_ep_;
 };
 
 } // namespace nutt
