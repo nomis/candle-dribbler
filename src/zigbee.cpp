@@ -44,7 +44,8 @@ ZigbeeString::ZigbeeString(const std::string_view text) {
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
 }
 
-ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::string_view model) {
+ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::string_view model)
+		: manufacturer_(manufacturer), model_(model) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -64,32 +65,41 @@ ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::strin
 
 	esp_zb_init(&config);
 
-	basic_cluster_ = esp_zb_basic_cluster_create(nullptr);
-
-	/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
-	ESP_ERROR_CHECK(esp_zb_cluster_update_attr(basic_cluster_,
-		ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source_));
-
-	if (!manufacturer.empty())
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster_,
-			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ZigbeeString{manufacturer}.data()));
-
-	if (!model.empty())
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster_,
-			ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ZigbeeString{model}.data()));
-
 	endpoint_list_ = esp_zb_ep_list_create();
 }
 
 void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 	if (endpoints_.emplace(endpoint.id(), endpoint).second) {
-		auto *cluster_list = endpoint.cluster_list();
+		auto *cluster_list = esp_zb_zcl_cluster_list_create();
+		esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
 
-		esp_zb_cluster_list_add_basic_cluster(cluster_list, basic_cluster_,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE);
+		/*
+		 * Adding clusters to the list in a different order from the order they
+		 * were created causes the wrong roles to be configured 😣
+		 *
+		 * Reusing the basic cluster works but it may be unsupported, so create
+		 * it every time. Keep the strings in memory too, just in case.
+		 */
 
-		esp_zb_ep_list_add_ep(endpoint_list_, cluster_list,
-			endpoint.id(), endpoint.profile_id(), endpoint.device_id());
+		/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
+		ESP_ERROR_CHECK(esp_zb_cluster_update_attr(basic_cluster,
+			ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source_));
+
+		if (!manufacturer_.empty())
+			ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+				ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, manufacturer_.data()));
+
+		if (!model_.empty())
+			ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+				ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, model_.data()));
+
+		ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(cluster_list,
+			basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+		endpoint.configure_cluster_list(*cluster_list);
+
+		ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(endpoint_list_, cluster_list,
+			endpoint.id(), endpoint.profile_id(), endpoint.device_id()));
 	}
 }
 
@@ -128,10 +138,6 @@ uint8_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, u
 
 ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)
 	: id_(id), profile_id_(profile_id), device_id_(device_id) {
-}
-
-esp_zb_cluster_list_t* ZigbeeEndpoint::cluster_list() {
-	return esp_zb_zcl_cluster_list_create();
 }
 
 uint8_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {

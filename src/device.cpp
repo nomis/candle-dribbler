@@ -46,13 +46,9 @@ IdentifyEndpoint::IdentifyEndpoint()
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID) {
 }
 
-esp_zb_cluster_list_t* IdentifyEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(cluster_list,
+void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
 		esp_zb_identify_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	return cluster_list;
 }
 
 } // namespace nutt

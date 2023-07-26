@@ -34,7 +34,7 @@ public:
 	PrimaryEndpoint(Light &light);
 	~PrimaryEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
@@ -49,7 +49,7 @@ public:
 	SecondaryEndpoint(Light &light);
 	~SecondaryEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
@@ -64,7 +64,7 @@ public:
 	StatusEndpoint(Light &light);
 	~StatusEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 30;
@@ -77,7 +77,7 @@ public:
 	TemporaryEnableEndpoint(Light &light);
 	~TemporaryEnableEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
@@ -92,7 +92,7 @@ public:
 	PersistentEnableEndpoint(Light &light);
 	~PersistentEnableEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 

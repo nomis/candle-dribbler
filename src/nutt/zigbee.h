@@ -67,8 +67,9 @@ private:
 
 	static ZigbeeDevice *instance_;
 
+	ZigbeeString manufacturer_;
+	ZigbeeString model_;
 	uint8_t power_source_{4}; /* DC */
-	esp_zb_attribute_list_t *basic_cluster_{nullptr};
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
 };
@@ -80,7 +81,7 @@ protected:
 
 public:
 	inline ep_id_t id() const { return id_; };
-	virtual esp_zb_cluster_list_t* cluster_list();
+	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
 	inline uint16_t profile_id() const { return profile_id_; };
 	inline uint16_t device_id() const { return device_id_; };
 

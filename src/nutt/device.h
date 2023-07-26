@@ -45,7 +45,7 @@ public:
 	IdentifyEndpoint();
 	~IdentifyEndpoint() = delete;
 
-	esp_zb_cluster_list_t* cluster_list() override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
 	static constexpr const ep_id_t EP_ID = 1;

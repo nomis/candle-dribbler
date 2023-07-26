@@ -65,17 +65,13 @@ PrimaryEndpoint::PrimaryEndpoint(Light &light)
 		light_(light) {
 }
 
-esp_zb_cluster_list_t* PrimaryEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
+void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t light_cfg = {
 		.on_off = 0,
 	};
 
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(cluster_list,
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	return cluster_list;
 }
 
 uint8_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
@@ -94,17 +90,13 @@ SecondaryEndpoint::SecondaryEndpoint(Light &light)
 		light_(light) {
 }
 
-esp_zb_cluster_list_t* SecondaryEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
+void SecondaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t light_cfg = {
 		.on_off = 0,
 	};
 
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(cluster_list,
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	return cluster_list;
 }
 
 uint8_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
@@ -123,10 +115,7 @@ StatusEndpoint::StatusEndpoint(Light &light)
 		light_(light) {
 }
 
-esp_zb_cluster_list_t* StatusEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
-	return cluster_list;
+void StatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 }
 
 TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
@@ -135,17 +124,13 @@ TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
 		light_(light) {
 }
 
-esp_zb_cluster_list_t* TemporaryEnableEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
+void TemporaryEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg = {
 		.on_off = 1,
 	};
 
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(cluster_list,
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	return cluster_list;
 }
 
 uint8_t TemporaryEnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
@@ -164,17 +149,13 @@ PersistentEnableEndpoint::PersistentEnableEndpoint(Light &light)
 		light_(light) {
 }
 
-esp_zb_cluster_list_t* PersistentEnableEndpoint::cluster_list() {
-	auto *cluster_list = ZigbeeEndpoint::cluster_list();
-
+void PersistentEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg = {
 		.on_off = 1,
 	};
 
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(cluster_list,
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	return cluster_list;
 }
 
 uint8_t PersistentEnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
