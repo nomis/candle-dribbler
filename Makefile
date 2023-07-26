@@ -18,4 +18,4 @@ app-flash: build
 	idf.py app-flash
 
 monitor:
-	idf.py monitor --timestamps
+	idf.py monitor --timestamps --no-reset
