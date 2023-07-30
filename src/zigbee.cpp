@@ -100,6 +100,8 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 
 		ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(endpoint_list_, cluster_list,
 			endpoint.id(), endpoint.profile_id(), endpoint.device_id()));
+
+		endpoint.attach(*this);
 	}
 }
 
@@ -136,12 +138,27 @@ uint8_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, u
 	}
 }
 
+void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
+	esp_zb_zcl_set_attribute_val(endpoint_id, cluster_id, cluster_role, attr_id, value, false);
+}
+
 ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)
 	: id_(id), profile_id_(profile_id), device_id_(device_id) {
 }
 
+void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
+	device_ = &device;
+}
+
 uint8_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+	ESP_LOGW("ZigbeeEndpoint", "set_attr_value not supported");
 	return -1;
+}
+
+void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
+	if (device_) {
+		device_->update_attr_value(id_, cluster_id, cluster_role, attr_id, value);
+	}
 }
 
 inline void ZigbeeDevice::signal_handler(uint32_t type, esp_err_t status) {

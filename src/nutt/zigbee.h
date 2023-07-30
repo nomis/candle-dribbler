@@ -28,6 +28,7 @@ namespace nutt {
 
 using ep_id_t = uint8_t;
 
+class ZigbeeDevice;
 class ZigbeeEndpoint;
 
 class ZigbeeString {
@@ -44,8 +45,32 @@ private:
 	std::vector<char> value_;
 };
 
+class ZigbeeEndpoint {
+protected:
+	ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id);
+	~ZigbeeEndpoint() = default;
+
+public:
+	inline ep_id_t id() const { return id_; };
+	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
+	inline uint16_t profile_id() const { return profile_id_; };
+	inline uint16_t device_id() const { return device_id_; };
+
+	void attach(ZigbeeDevice &device);
+
+	virtual uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value);
+	void update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
+
+private:
+	const ep_id_t id_;
+	const uint16_t profile_id_;
+	const uint16_t device_id_;
+	ZigbeeDevice *device_{nullptr};
+};
+
 class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
+	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
 	ZigbeeDevice(const std::string_view manufacturer, const std::string_view model);
@@ -64,6 +89,7 @@ private:
 	void run();
 	void signal_handler(uint32_t type, esp_err_t status);
 	uint8_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
+	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 	static ZigbeeDevice *instance_;
 
@@ -72,25 +98,6 @@ private:
 	uint8_t power_source_{4}; /* DC */
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
-};
-
-class ZigbeeEndpoint {
-protected:
-	ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id);
-	~ZigbeeEndpoint() = default;
-
-public:
-	inline ep_id_t id() const { return id_; };
-	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
-	inline uint16_t profile_id() const { return profile_id_; };
-	inline uint16_t device_id() const { return device_id_; };
-
-	virtual uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value);
-
-private:
-	const ep_id_t id_;
-	const uint16_t profile_id_;
-	const uint16_t device_id_;
 };
 
 } // namespace nutt
