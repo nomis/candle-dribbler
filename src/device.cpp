@@ -26,6 +26,7 @@
 namespace nutt {
 
 Device::Device() : zigbee_(*new ZigbeeDevice{"uuid.uk", "candle-dribbler"}) {
+	zigbee_.add(*new IdentifyEndpoint{});
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -36,8 +37,6 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 }
 
 void Device::start() {
-	// TODO move this to the start of the endpoint list
-	zigbee_.add(*new IdentifyEndpoint{});
 	zigbee_.start();
 }
 
