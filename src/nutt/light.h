@@ -20,6 +20,7 @@
 
 #include <nvs.h>
 #include <nvs_handle.hpp>
+#include <driver/gpio.h>
 
 #include <vector>
 
@@ -119,7 +120,7 @@ private:
 
 class Light {
 public:
-	Light(size_t index, int switch_pin_, int relay_pin_);
+	Light(size_t index, gpio_num_t switch_pin, gpio_num_t relay_pin, bool active_low);
 	~Light() = delete;
 
 	inline size_t index() const { return index_; }
@@ -147,8 +148,9 @@ private:
 	void update_state();
 
 	const size_t index_;
-	const int switch_pin_;
-	const int relay_pin_;
+	const gpio_num_t switch_pin_;
+	const gpio_num_t relay_pin_;
+	const bool active_low_;
 
 	bool primary_on_{false};
 	bool secondary_on_{false};

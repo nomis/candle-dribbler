@@ -40,12 +40,12 @@ extern "C" void app_main() {
 
 	auto &device = *new Device{};
 
-	if (MAX_LIGHTS >= 1) (new Light{1, 3, 18})->attach(device);
-	if (MAX_LIGHTS >= 2) (new Light{2, 2, 19})->attach(device);
-	if (MAX_LIGHTS >= 3) (new Light{3, 11, 20})->attach(device);
-	if (MAX_LIGHTS >= 4) (new Light{4, 10, 21})->attach(device);
-	if (MAX_LIGHTS >= 5) (new Light{5, 1, 22})->attach(device);
-	if (MAX_LIGHTS >= 6) (new Light{6, 0, 23})->attach(device);
+	if (MAX_LIGHTS >= 1) (new Light{1, GPIO_NUM_3,  GPIO_NUM_18, true})->attach(device);
+	if (MAX_LIGHTS >= 2) (new Light{2, GPIO_NUM_2,  GPIO_NUM_19, true})->attach(device);
+	if (MAX_LIGHTS >= 3) (new Light{3, GPIO_NUM_11, GPIO_NUM_20, true})->attach(device);
+	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, GPIO_NUM_21, true})->attach(device);
+	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  GPIO_NUM_22, true})->attach(device);
+	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  GPIO_NUM_23, true})->attach(device);
 
 	device.start();
 }

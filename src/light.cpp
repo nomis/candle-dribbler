@@ -22,6 +22,7 @@
 #include <esp_log.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
+#include <driver/gpio.h>
 #include <ha/esp_zigbee_ha_standard.h>
 
 #include <memory>
@@ -31,14 +32,32 @@ namespace nutt {
 
 std::unique_ptr<nvs::NVSHandle> Light::nvs_;
 
-Light::Light(size_t index, int switch_pin, int relay_pin)
+Light::Light(size_t index, gpio_num_t switch_pin, gpio_num_t relay_pin, bool active_low)
 		: index_(index), switch_pin_(switch_pin), relay_pin_(relay_pin),
-		persistent_enable_(persistent_enable_nvs()),
+		active_low_(active_low), persistent_enable_(persistent_enable_nvs()),
 		temporary_enable_(persistent_enable_),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
 		status_ep_(*new light::StatusEndpoint{*this}),
 		temporary_enable_ep_(*new light::TemporaryEnableEndpoint{*this}) {
+	gpio_config_t switch_config = {
+		.pin_bit_mask = 1ULL << switch_pin_,
+		.mode = GPIO_MODE_INPUT,
+		.pull_up_en = GPIO_PULLUP_ENABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_DISABLE,
+	};
+	gpio_config_t relay_config = {
+		.pin_bit_mask = 1ULL << relay_pin_,
+		.mode = GPIO_MODE_OUTPUT,
+		.pull_up_en = GPIO_PULLUP_DISABLE,
+		.pull_down_en = GPIO_PULLDOWN_DISABLE,
+		.intr_type = GPIO_INTR_DISABLE,
+	};
+
+	ESP_ERROR_CHECK(gpio_config(&switch_config));
+	ESP_ERROR_CHECK(gpio_set_level(relay_pin_, active_low_ ? 1 : 0));
+	ESP_ERROR_CHECK(gpio_config(&relay_config));
 }
 
 bool Light::open_nvs() {
@@ -102,6 +121,7 @@ void Light::persistent_enable(bool state) {
 	ESP_LOGI(TAG, "Light %u persistent enable %d", index_, state);
 	persistent_enable_nvs(state);
 	persistent_enable_ = state;
+	ESP_LOGI(TAG, "Light %u temporary enable %d (auto)", index_, state);
 	temporary_enable_ = state;
 	update_state();
 }
@@ -109,6 +129,7 @@ void Light::persistent_enable(bool state) {
 void Light::update_state() {
 	on_ = (temporary_enable_ && primary_on_) || secondary_on_;
 	ESP_LOGI(TAG, "Light %u state %d", index_, on_);
+	gpio_set_level(relay_pin_, (on_ ^ active_low_) ? 1 : 0);
 	status_ep_.refresh();
 	primary_ep_.refresh();
 	secondary_ep_.refresh();
