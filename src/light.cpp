@@ -90,6 +90,7 @@ void Light::persistent_enable_nvs(bool state) {
 }
 
 void Light::attach(Device &device) {
+	device_ = &device;
 	device.add(*this, {
 		primary_ep_,
 		secondary_ep_,
@@ -100,36 +101,40 @@ void Light::attach(Device &device) {
 }
 
 void Light::primary_switch(bool state) {
-	ESP_LOGI(TAG, "Light %u primary switch %d", index_, state);
+	ESP_LOGI(TAG, "Light %u set primary switch %d", index_, state);
 	primary_on_ = state;
 	update_state();
 }
 
 void Light::secondary_switch(bool state) {
-	ESP_LOGI(TAG, "Light %u secondary switch %d", index_, state);
+	ESP_LOGI(TAG, "Light %u set secondary switch %d", index_, state);
 	secondary_on_ = state;
 	update_state();
 }
 
 void Light::temporary_enable(bool state) {
-	ESP_LOGI(TAG, "Light %u temporary enable %d", index_, state);
+	ESP_LOGI(TAG, "Light %u set temporary enable %d", index_, state);
 	temporary_enable_ = state;
 	update_state();
 }
 
 void Light::persistent_enable(bool state) {
-	ESP_LOGI(TAG, "Light %u persistent enable %d", index_, state);
+	ESP_LOGI(TAG, "Light %u set persistent enable %d", index_, state);
 	persistent_enable_nvs(state);
 	persistent_enable_ = state;
-	ESP_LOGI(TAG, "Light %u temporary enable %d (auto)", index_, state);
+	ESP_LOGI(TAG, "Light %u set temporary enable %d (auto)", index_, state);
 	temporary_enable_ = state;
 	update_state();
 }
 
 void Light::update_state() {
 	on_ = (temporary_enable_ && primary_on_) || secondary_on_;
-	ESP_LOGI(TAG, "Light %u state %d", index_, on_);
+	ESP_LOGI(TAG, "Light %u update state %d", index_, on_);
 	gpio_set_level(relay_pin_, (on_ ^ active_low_) ? 1 : 0);
+	device_->request_refresh();
+}
+
+void Light::refresh() {
 	status_ep_.refresh();
 	primary_ep_.refresh();
 	secondary_ep_.refresh();
@@ -170,6 +175,8 @@ void PrimaryEndpoint::refresh() {
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
 
+		ESP_LOGI(TAG, "Light %u report primary switch %u", light_.index(), value);
+
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
 			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
@@ -198,6 +205,8 @@ void SecondaryEndpoint::refresh() {
 
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
+
+		ESP_LOGI(TAG, "Light %u report secondary switch %u", light_.index(), value);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
@@ -239,6 +248,8 @@ void StatusEndpoint::refresh() {
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
 
+		ESP_LOGI(TAG, "Light %u report state %u", light_.index(), value);
+
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE,
 			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
@@ -267,6 +278,8 @@ void TemporaryEnableEndpoint::refresh() {
 
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
+
+		ESP_LOGI(TAG, "Light %u report temporary enable %u", light_.index(), value);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,

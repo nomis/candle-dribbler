@@ -44,6 +44,7 @@ public:
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
 private:
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 10;
 
 	Light &light_;
@@ -61,6 +62,7 @@ public:
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
 private:
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 20;
 
 	Light &light_;
@@ -77,6 +79,7 @@ public:
 	void refresh();
 
 private:
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 30;
 
 	Light &light_;
@@ -94,6 +97,7 @@ public:
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
 private:
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 40;
 
 	Light &light_;
@@ -110,6 +114,7 @@ public:
 	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
 private:
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 50;
 
 	Light &light_;
@@ -138,6 +143,8 @@ public:
 	void temporary_enable(bool state);
 	void persistent_enable(bool state);
 
+	void refresh();
+
 private:
 	static constexpr const char *TAG = "nutt.Light";
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
@@ -162,6 +169,8 @@ private:
 	light::SecondaryEndpoint &secondary_ep_;
 	light::StatusEndpoint &status_ep_;
 	light::TemporaryEnableEndpoint &temporary_enable_ep_;
+
+	Device *device_{nullptr};
 };
 
 } // namespace nutt

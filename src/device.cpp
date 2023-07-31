@@ -19,13 +19,19 @@
 #include "nutt/light.h"
 
 #include <esp_err.h>
+#include <esp_log.h>
 
 #include <functional>
 #include <vector>
 
 namespace nutt {
 
+Device *Device::instance_{nullptr};
+
 Device::Device() : zigbee_(*new ZigbeeDevice{"uuid.uk", "candle-dribbler"}) {
+	assert(!instance_);
+	instance_ = this;
+
 	zigbee_.add(*new IdentifyEndpoint{});
 }
 
@@ -38,6 +44,21 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 
 void Device::start() {
 	zigbee_.start();
+}
+
+void Device::request_refresh() {
+	esp_zb_scheduler_alarm(&Device::scheduled_refresh, 0, 0);
+}
+
+void Device::do_refresh() {
+	ESP_LOGI(TAG, "Refresh");
+
+	for (Light &light : lights_)
+		light.refresh();
+}
+
+void Device::scheduled_refresh(uint8_t param) {
+	instance_->do_refresh();
 }
 
 IdentifyEndpoint::IdentifyEndpoint()

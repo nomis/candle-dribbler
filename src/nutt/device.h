@@ -34,8 +34,17 @@ public:
 
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
+	void request_refresh();
 
 private:
+	static constexpr const char *TAG = "nutt.Device";
+
+	static void scheduled_refresh(uint8_t param);
+
+	void do_refresh();
+
+	static Device *instance_;
+
 	ZigbeeDevice &zigbee_;
 	std::vector<std::reference_wrapper<Light>> lights_;
 };
