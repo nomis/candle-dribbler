@@ -31,7 +31,8 @@
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 	nutt::ZigbeeDevice::instance_->signal_handler(
 		static_cast<esp_zb_app_signal_type_t>(*signal_struct->p_app_signal),
-		signal_struct->esp_err_status);
+		signal_struct->esp_err_status,
+		esp_zb_app_signal_get_params(signal_struct->p_app_signal));
 }
 
 namespace nutt {
@@ -44,6 +45,17 @@ ZigbeeString::ZigbeeString(const std::string_view text) {
 	value_.reserve(1 + text.length());
 	value_.push_back(text.length());
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
+}
+
+std::string ZigbeeAddress::to_string() const {
+	std::vector<char> data(24);
+
+	snprintf(data.data(), data.size(),
+		"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		value_[7], value_[6], value_[5], value_[4],
+		value_[3], value_[2], value_[1], value_[0]);
+
+	return {data.data(), data.size()};
 }
 
 ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::string_view model)
@@ -163,7 +175,7 @@ void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role
 	}
 }
 
-inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_t status) {
+inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data) {
 	switch (type) {
 	case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
 		break;
@@ -188,10 +200,9 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		if (status == ESP_OK) {
 			esp_zb_ieee_addr_t extended_pan_id;
 			esp_zb_get_extended_pan_id(extended_pan_id);
-			ESP_LOGI(TAG, "Joined network successfully (Extended PAN ID: %02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x, PAN ID: 0x%04hx, Channel:%d)",
-					 extended_pan_id[7], extended_pan_id[6], extended_pan_id[5], extended_pan_id[4],
-					 extended_pan_id[3], extended_pan_id[2], extended_pan_id[1], extended_pan_id[0],
-					 esp_zb_get_pan_id(), esp_zb_get_current_channel());
+			ESP_LOGI(TAG, "Joined network successfully (%s/0x%04x@%u)",
+					ZigbeeAddress{extended_pan_id}.to_string().c_str(),
+					esp_zb_get_pan_id(), esp_zb_get_current_channel());
 		} else {
 			ESP_LOGI(TAG, "Network steering was not successful (status: %d)", status);
 			esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
@@ -199,10 +210,19 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		break;
 
 	case ESP_ZB_ZDO_DEVICE_UNAVAILABLE:
+		if (status == ESP_OK && data) {
+			struct device_unavailable_params {
+				esp_zb_ieee_addr_t long_addr;
+				uint16_t short_addr;
+			} *params = static_cast<struct device_unavailable_params*>(data);
+			ESP_LOGW(TAG, "Device unavailable (%s/0x%04x)",
+				ZigbeeAddress{params->long_addr}.to_string().c_str(),
+				params->short_addr);
+		}
 		break;
 
 	default:
-		ESP_LOGW(TAG, "Unknown signal: 0x%x, status: %d", type, status);
+		ESP_LOGW(TAG, "Unknown signal: 0x%x, status: %d, data: %p", type, status, data);
 		break;
 	}
 }

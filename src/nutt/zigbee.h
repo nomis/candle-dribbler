@@ -20,6 +20,9 @@
 
 #include <esp_zigbee_core.h>
 
+#include <algorithm>
+#include <array>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -33,7 +36,7 @@ class ZigbeeEndpoint;
 
 class ZigbeeString {
 public:
-	ZigbeeString(const std::string_view text);
+	explicit ZigbeeString(const std::string_view text);
 	~ZigbeeString() = default;
 
 	inline char* data() { return value_.data(); }
@@ -43,6 +46,19 @@ private:
 	static constexpr const size_t MAX_LENGTH = UINT8_MAX - 1;
 
 	std::vector<char> value_;
+};
+
+class ZigbeeAddress {
+public:
+	explicit inline ZigbeeAddress(esp_zb_ieee_addr_t address) {
+		std::copy(address, address + value_.size(), value_.begin());
+	}
+
+	inline std::array<uint8_t,8> value() const { return value_; }
+	std::string to_string() const;
+
+private:
+	std::array<uint8_t,8> value_;
 };
 
 class ZigbeeEndpoint {
@@ -87,7 +103,7 @@ private:
 	static void attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
 
 	void run();
-	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status);
+	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
 	uint8_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
