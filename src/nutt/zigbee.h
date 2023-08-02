@@ -87,7 +87,7 @@ private:
 	static void attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
 
 	void run();
-	void signal_handler(uint32_t type, esp_err_t status);
+	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status);
 	uint8_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 

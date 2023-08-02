@@ -29,7 +29,9 @@
 #include <string_view>
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
-	nutt::ZigbeeDevice::instance_->signal_handler(*signal_struct->p_app_signal, signal_struct->esp_err_status);
+	nutt::ZigbeeDevice::instance_->signal_handler(
+		static_cast<esp_zb_app_signal_type_t>(*signal_struct->p_app_signal),
+		signal_struct->esp_err_status);
 }
 
 namespace nutt {
@@ -161,8 +163,11 @@ void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role
 	}
 }
 
-inline void ZigbeeDevice::signal_handler(uint32_t type, esp_err_t status) {
+inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_t status) {
 	switch (type) {
+	case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
+		break;
+
 	case ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP:
 		ESP_LOGI(TAG, "Zigbee stack initialized");
 		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_INITIALIZATION));
@@ -193,8 +198,11 @@ inline void ZigbeeDevice::signal_handler(uint32_t type, esp_err_t status) {
 		}
 		break;
 
+	case ESP_ZB_ZDO_DEVICE_UNAVAILABLE:
+		break;
+
 	default:
-		ESP_LOGW(TAG, "Unknown signal: %" PRIu32 ", status: %d", type, status);
+		ESP_LOGW(TAG, "Unknown signal: 0x%x, status: %d", type, status);
 		break;
 	}
 }
