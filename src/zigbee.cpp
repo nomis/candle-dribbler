@@ -38,6 +38,7 @@ extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 namespace nutt {
 
 ZigbeeDevice *ZigbeeDevice::instance_{nullptr};
+uint8_t ZigbeeDevice::power_source_{4}; /* DC */
 
 ZigbeeString::ZigbeeString(const std::string_view text) {
 	size_t length = std::max(text.length(), MAX_LENGTH);
@@ -58,8 +59,7 @@ std::string ZigbeeAddress::to_string() const {
 	return {data.data(), data.size()};
 }
 
-ZigbeeDevice::ZigbeeDevice(const std::string_view manufacturer, const std::string_view model)
-		: manufacturer_(manufacturer), model_(model) {
+ZigbeeDevice::ZigbeeDevice() {
 	assert(!instance_);
 	instance_ = this;
 
@@ -92,20 +92,14 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 		 * were created causes the wrong roles to be configured 😣
 		 *
 		 * Reusing the basic cluster works but it may be unsupported, so create
-		 * it every time. Keep the strings in memory too, just in case.
+		 * it every time.
 		 */
 
 		/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
 		ESP_ERROR_CHECK(esp_zb_cluster_update_attr(basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source_));
 
-		if (!manufacturer_.empty())
-			ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
-				ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, manufacturer_.data()));
-
-		if (!model_.empty())
-			ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
-				ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, model_.data()));
+		endpoint.configure_basic_cluster(*basic_cluster);
 
 		ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(cluster_list,
 			basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -215,14 +209,28 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 				esp_zb_ieee_addr_t long_addr;
 				uint16_t short_addr;
 			} *params = static_cast<struct device_unavailable_params*>(data);
+
 			ESP_LOGW(TAG, "Device unavailable (%s/0x%04x)",
 				ZigbeeAddress{params->long_addr}.to_string().c_str(),
 				params->short_addr);
 		}
 		break;
 
+	case ESP_ZB_NLME_STATUS_INDICATION:
+		if (status == ESP_OK && data) {
+			struct nlme_status_indication {
+				uint8_t status;
+				uint16_t network_addr;
+				uint8_t unknown_command_id;
+			} __attribute__((packed)) *params = static_cast<struct nlme_status_indication*>(data);
+
+			ESP_LOGW(TAG, "NLME status indication: %02x 0x%04x %02x",
+				params->status, params->network_addr, params->unknown_command_id);
+		}
+		break;
+
 	default:
-		ESP_LOGW(TAG, "Unknown signal: 0x%x, status: %d, data: %p", type, status, data);
+		ESP_LOGW(TAG, "Unknown signal: %u/0x%02x, status: %d, data: %p", type, type, status, data);
 		break;
 	}
 }

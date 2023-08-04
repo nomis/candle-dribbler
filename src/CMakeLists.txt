@@ -6,6 +6,7 @@ idf_component_register(
 		zigbee.cpp
 
     REQUIRES
+		app_update
 		driver
 		nvs_flash
 )

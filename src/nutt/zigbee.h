@@ -68,7 +68,8 @@ protected:
 
 public:
 	inline ep_id_t id() const { return id_; };
-	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
+	virtual void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) {};
+	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {};
 	inline uint16_t profile_id() const { return profile_id_; };
 	inline uint16_t device_id() const { return device_id_; };
 
@@ -89,7 +90,7 @@ class ZigbeeDevice {
 	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
-	ZigbeeDevice(const std::string_view manufacturer, const std::string_view model);
+	ZigbeeDevice();
 	~ZigbeeDevice() = delete;
 
 	void add(ZigbeeEndpoint &endpoint);
@@ -108,10 +109,8 @@ private:
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 	static ZigbeeDevice *instance_;
+	static uint8_t power_source_;
 
-	ZigbeeString manufacturer_;
-	ZigbeeString model_;
-	uint8_t power_source_{4}; /* DC */
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
 };

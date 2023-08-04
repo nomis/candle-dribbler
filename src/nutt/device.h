@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <esp_app_desc.h>
+
 #include <functional>
 #include <vector>
 
@@ -36,6 +38,9 @@ public:
 	void start();
 	void request_refresh();
 
+	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
+		std::string version, const esp_app_desc_t *desc);
+
 private:
 	static constexpr const char *TAG = "nutt.Device";
 
@@ -51,13 +56,32 @@ private:
 
 class IdentifyEndpoint: public ZigbeeEndpoint {
 public:
-	IdentifyEndpoint();
+	IdentifyEndpoint(const std::string_view manufacturer,
+		const std::string_view model, const std::string_view url);
 	~IdentifyEndpoint() = delete;
 
+	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) override;
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
 	static constexpr const ep_id_t EP_ID = 1;
+
+	const std::string_view manufacturer_;
+	const std::string_view model_;
+	const std::string_view url_;
+};
+
+class SoftwareEndpoint: public ZigbeeEndpoint {
+public:
+	SoftwareEndpoint(size_t index);
+	~SoftwareEndpoint() = delete;
+
+	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) override;
+
+private:
+	static constexpr const char *TAG = "nutt.Device";
+	static constexpr const ep_id_t BASE_EP_ID = 200;
+	size_t index_;
 };
 
 } // namespace nutt
