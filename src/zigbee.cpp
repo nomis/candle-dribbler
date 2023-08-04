@@ -48,17 +48,6 @@ ZigbeeString::ZigbeeString(const std::string_view text) {
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
 }
 
-std::string ZigbeeAddress::to_string() const {
-	std::vector<char> data(24);
-
-	snprintf(data.data(), data.size(),
-		"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		value_[7], value_[6], value_[5], value_[4],
-		value_[3], value_[2], value_[1], value_[0]);
-
-	return {data.data(), data.size()};
-}
-
 ZigbeeDevice::ZigbeeDevice() {
 	assert(!instance_);
 	instance_ = this;
@@ -195,7 +184,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			esp_zb_ieee_addr_t extended_pan_id;
 			esp_zb_get_extended_pan_id(extended_pan_id);
 			ESP_LOGI(TAG, "Joined network successfully (%s/0x%04x@%u)",
-					ZigbeeAddress{extended_pan_id}.to_string().c_str(),
+					zigbee_address_string(extended_pan_id).c_str(),
 					esp_zb_get_pan_id(), esp_zb_get_current_channel());
 		} else {
 			ESP_LOGI(TAG, "Network steering was not successful (status: %d)", status);
@@ -211,7 +200,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			} *params = static_cast<struct device_unavailable_params*>(data);
 
 			ESP_LOGW(TAG, "Device unavailable (%s/0x%04x)",
-				ZigbeeAddress{params->long_addr}.to_string().c_str(),
+				zigbee_address_string(params->long_addr).c_str(),
 				params->short_addr);
 		}
 		break;

@@ -21,7 +21,6 @@
 #include <esp_zigbee_core.h>
 
 #include <algorithm>
-#include <array>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -48,18 +47,16 @@ private:
 	std::vector<char> value_;
 };
 
-class ZigbeeAddress {
-public:
-	explicit inline ZigbeeAddress(esp_zb_ieee_addr_t address) {
-		std::copy(address, address + value_.size(), value_.begin());
-	}
+static inline std::string zigbee_address_string(esp_zb_ieee_addr_t address) {
+	std::vector<char> data(24);
 
-	inline std::array<uint8_t,8> value() const { return value_; }
-	std::string to_string() const;
+	snprintf(data.data(), data.size(),
+		"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		address[7], address[6], address[5], address[4],
+		address[3], address[2], address[1], address[0]);
 
-private:
-	std::array<uint8_t,8> value_;
-};
+	return {data.data(), data.size()};
+}
 
 class ZigbeeEndpoint {
 protected:
