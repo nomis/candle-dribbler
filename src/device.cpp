@@ -103,10 +103,22 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 				date_code += 'Z';
 		}
 
-		if (!version.empty())
+		if (!version.empty() && version.back() != ' ')
+			version += ' ';
+
+		version += desc->project_name;
+
+		if (!version.empty() && version.back() != ' ')
 			version += ' ';
 
 		version += desc->version;
+
+		if (!version.empty() && version.back() != ' ')
+			version += ' ';
+
+		version += "[esp-idf ";
+		version += desc->idf_ver;
+		version += ']';
 	}
 
 	if (date_code.empty())
