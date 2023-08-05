@@ -107,7 +107,7 @@ void ZigbeeDevice::start() {
 	ESP_ERROR_CHECK(esp_zb_device_register(endpoint_list_));
 	esp_zb_device_add_set_attr_value_cb(attr_value_cb);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
-	ESP_ERROR_CHECK(esp_zb_start(true /* TODO true */));
+	ESP_ERROR_CHECK(esp_zb_start(true));
 
 	std::thread t;
 	make_thread(t, "zigbee_main", 4096, 5, &ZigbeeDevice::run, this);
