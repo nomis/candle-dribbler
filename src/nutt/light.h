@@ -73,14 +73,15 @@ private:
 	bool state_;
 };
 
-class StatusEndpoint: public ZigbeeEndpoint {
+class SwitchStatusEndpoint: public ZigbeeEndpoint {
 public:
-	StatusEndpoint(Light &light);
-	~StatusEndpoint() = delete;
+	SwitchStatusEndpoint(Light &light);
+	~SwitchStatusEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 	void refresh();
+	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
 
 private:
 	static constexpr const char *TAG = "nutt.Light";
@@ -145,6 +146,7 @@ public:
 
 	bool primary_on() const;
 	bool secondary_on() const;
+	bool switch_on() const;
 	bool temporary_enable() const;
 	bool persistent_enable() const;
 	bool on() const;
@@ -154,7 +156,7 @@ public:
 	void temporary_enable(bool state);
 	void persistent_enable(bool state);
 
-
+	void request_refresh();
 	void refresh();
 
 private:
@@ -194,7 +196,7 @@ private:
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;
-	light::StatusEndpoint &status_ep_;
+	light::SwitchStatusEndpoint &switch_status_ep_;
 	light::TemporaryEnableEndpoint &temporary_enable_ep_;
 
 	Device *device_{nullptr};
