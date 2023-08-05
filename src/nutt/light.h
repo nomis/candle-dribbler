@@ -143,16 +143,17 @@ public:
 
 	TickType_t run();
 
-	bool primary_on() const { return primary_on_; }
-	bool secondary_on() const { return secondary_on_; }
-	bool temporary_enable() const { return temporary_enable_; }
-	bool persistent_enable() const { return persistent_enable_; }
-	bool on() const { return on_; }
+	bool primary_on() const;
+	bool secondary_on() const;
+	bool temporary_enable() const;
+	bool persistent_enable() const;
+	bool on() const;
 
 	void primary_switch(bool state, bool local);
 	void secondary_switch(bool state);
 	void temporary_enable(bool state);
 	void persistent_enable(bool state);
+
 
 	void refresh();
 
@@ -177,7 +178,7 @@ private:
 	const gpio_num_t relay_pin_;
 	const bool relay_active_low_;
 
-	std::mutex mutex_;
+	mutable std::mutex mutex_;
 	bool primary_on_{false};
 	bool secondary_on_{false};
 	bool persistent_enable_{true};

@@ -153,6 +153,30 @@ void Light::interrupt_handler() {
 		device->wake_up_isr();
 }
 
+bool Light::primary_on() const {
+	std::lock_guard lock{mutex_};
+	return primary_on_;
+}
+
+bool Light::secondary_on() const {
+	std::lock_guard lock{mutex_};
+	return secondary_on_;
+}
+
+bool Light::temporary_enable() const {
+	std::lock_guard lock{mutex_};
+	return temporary_enable_;
+}
+
+bool Light::persistent_enable() const {
+	std::lock_guard lock{mutex_};
+	return persistent_enable_;
+}
+
+bool Light::on() const {
+	return on_;
+}
+
 void Light::primary_switch(bool state, bool local) {
 	std::lock_guard lock{mutex_};
 
