@@ -20,21 +20,26 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
+#include <freertos/FreeRTOS.h>
 #include <driver/gpio.h>
 #include <ha/esp_zigbee_ha_standard.h>
 
 #include <memory>
 #include <string>
+#include <thread>
 
 namespace nutt {
 
 std::unique_ptr<nvs::NVSHandle> Light::nvs_;
 
-Light::Light(size_t index, gpio_num_t switch_pin, gpio_num_t relay_pin, bool active_low)
-		: index_(index), switch_pin_(switch_pin), relay_pin_(relay_pin),
-		active_low_(active_low), persistent_enable_(persistent_enable_nvs()),
+Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
+		gpio_num_t relay_pin, bool relay_active_low) : index_(index),
+		switch_pin_(switch_pin), switch_active_low_(switch_active_low),
+		relay_pin_(relay_pin), relay_active_low_(relay_active_low),
+		persistent_enable_(persistent_enable_nvs()),
 		temporary_enable_(persistent_enable_),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
@@ -56,8 +61,13 @@ Light::Light(size_t index, gpio_num_t switch_pin, gpio_num_t relay_pin, bool act
 	};
 
 	ESP_ERROR_CHECK(gpio_config(&switch_config));
-	ESP_ERROR_CHECK(gpio_set_level(relay_pin_, active_low_ ? 1 : 0));
+	ESP_ERROR_CHECK(gpio_set_level(relay_pin_, relay_inactive()));
 	ESP_ERROR_CHECK(gpio_config(&relay_config));
+
+	switch_change_state_ = switch_state_ = gpio_get_level(switch_pin_);
+	switch_active_ = switch_state_ == switch_active();
+
+	ESP_ERROR_CHECK(gpio_isr_handler_add(switch_pin_, light_interrupt_handler, this));
 }
 
 bool Light::open_nvs() {
@@ -98,39 +108,96 @@ void Light::attach(Device &device) {
 		temporary_enable_ep_,
 		*new light::PersistentEnableEndpoint{*this},
 	});
+
+	ESP_ERROR_CHECK(gpio_set_intr_type(switch_pin_, GPIO_INTR_ANYEDGE));
+	ESP_ERROR_CHECK(gpio_intr_enable(switch_pin_));
 }
 
-void Light::primary_switch(bool state) {
-	ESP_LOGI(TAG, "Light %u set primary switch %d", index_, state);
+TickType_t Light::run() {
+	TickType_t wait = portMAX_DELAY;
+	unsigned long switch_change_count_copy = switch_change_count_irq_;
+	uint64_t now_us = esp_timer_get_time();
+	int level = gpio_get_level(switch_pin_);
+
+	if (switch_change_count_copy != switch_change_count_) {
+		switch_change_count_ = switch_change_count_copy;
+		switch_change_us_ = now_us;
+	}
+
+	if (switch_change_state_ != level) {
+		switch_change_state_ = level;
+		switch_change_us_ = now_us;
+	}
+
+	if (switch_state_ != switch_change_state_) {
+		if (now_us - switch_change_us_ >= DEBOUNCE_US) {
+			switch_state_ = switch_change_state_;
+			switch_active_ = switch_state_ == switch_active();
+			primary_switch(switch_active_, true);
+		} else {
+			wait = std::max(static_cast<uint64_t>(0U), (DEBOUNCE_US - (now_us - switch_change_us_))) / static_cast<uint64_t>(1000U) / portTICK_PERIOD_MS;
+		}
+	}
+
+	return wait;
+}
+
+void light_interrupt_handler(void *arg) {
+	static_cast<Light*>(arg)->interrupt_handler();
+}
+
+void Light::interrupt_handler() {
+	Device *device = device_;
+
+	if (device)
+		device->wake_up_isr();
+}
+
+void Light::primary_switch(bool state, bool local) {
+	std::lock_guard lock{mutex_};
+
+	ESP_LOGI(TAG, "Light %u set primary switch %d -> %d (%s)",
+		index_, primary_on_, state, local ? "local" : "remote");
 	primary_on_ = state;
 	update_state();
 }
 
 void Light::secondary_switch(bool state) {
-	ESP_LOGI(TAG, "Light %u set secondary switch %d", index_, state);
+	std::lock_guard lock{mutex_};
+
+	ESP_LOGI(TAG, "Light %u set secondary switch %d -> %d",
+		index_, secondary_on_, state);
 	secondary_on_ = state;
 	update_state();
 }
 
 void Light::temporary_enable(bool state) {
-	ESP_LOGI(TAG, "Light %u set temporary enable %d", index_, state);
+	std::lock_guard lock{mutex_};
+
+	ESP_LOGI(TAG, "Light %u set temporary enable %d -> %d",
+		index_, temporary_enable_, state);
 	temporary_enable_ = state;
 	update_state();
 }
 
 void Light::persistent_enable(bool state) {
-	ESP_LOGI(TAG, "Light %u set persistent enable %d", index_, state);
+	std::lock_guard lock{mutex_};
+
+	ESP_LOGI(TAG, "Light %u set persistent enable %d -> %d",
+		index_, persistent_enable_, state);
 	persistent_enable_nvs(state);
 	persistent_enable_ = state;
-	ESP_LOGI(TAG, "Light %u set temporary enable %d (auto)", index_, state);
+	ESP_LOGI(TAG, "Light %u set temporary enable %d -> %d (auto)",
+		index_, temporary_enable_, state);
 	temporary_enable_ = state;
 	update_state();
 }
 
 void Light::update_state() {
-	on_ = (temporary_enable_ && primary_on_) || secondary_on_;
-	ESP_LOGI(TAG, "Light %u update state %d", index_, on_);
-	gpio_set_level(relay_pin_, (on_ ^ active_low_) ? 1 : 0);
+	bool on = (temporary_enable_ && primary_on_) || secondary_on_;
+	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
+	on_ = on;
+	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
 	device_->request_refresh();
 }
 
@@ -162,7 +229,7 @@ uint8_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, v
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 			state_ = *(uint8_t *)value != 0;
-			light_.primary_switch(state_);
+			light_.primary_switch(state_, false);
 			return 0;
 		}
 	}

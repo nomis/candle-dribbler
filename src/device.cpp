@@ -22,11 +22,15 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
+#include <freertos/FreeRTOS.h>
 
 #include <cstring>
 #include <functional>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "nutt/thread.h"
 
 namespace nutt {
 
@@ -36,6 +40,12 @@ uint8_t IdentifyEndpoint::power_source_{4}; /* DC */
 Device::Device() : zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
 	instance_ = this;
+
+	semaphore_ = xSemaphoreCreateBinary();
+	if (!semaphore_) {
+		ESP_LOGE(TAG, "Semaphore create failed");
+		esp_restart();
+	}
 
 	zigbee_.add(*new IdentifyEndpoint{"uuid.uk", "candle-dribbler",
 		"https://github.com/nomis/candle-dribbler"});
@@ -53,10 +63,21 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 
 void Device::start() {
 	zigbee_.start();
+
+	std::thread t;
+	make_thread(t, "device_main", 4096, 19, &Device::run, this);
+	t.detach();
 }
 
 void Device::request_refresh() {
 	esp_zb_scheduler_alarm(&Device::scheduled_refresh, 0, 0);
+}
+
+void Device::wake_up_isr() {
+	BaseType_t xHigherPriorityTaskWoken{pdFALSE};
+
+	xSemaphoreGiveFromISR(semaphore_, &xHigherPriorityTaskWoken);
+	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void Device::do_refresh() {
@@ -68,6 +89,20 @@ void Device::do_refresh() {
 
 void Device::scheduled_refresh(uint8_t param) {
 	instance_->do_refresh();
+}
+
+void Device::run() {
+	while (true) {
+		TickType_t wait = portMAX_DELAY;
+
+		for (Light &light : lights_)
+			wait = std::min(wait, std::max(static_cast<TickType_t>(1U), light.run()));
+
+		xSemaphoreTake(semaphore_, wait);
+	}
+
+	ESP_LOGE(TAG, "Device main loop stopped");
+	esp_restart();
 }
 
 IdentifyEndpoint::IdentifyEndpoint(const std::string_view manufacturer,

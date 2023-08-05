@@ -21,7 +21,11 @@
 #include <nvs.h>
 #include <nvs_handle.hpp>
 #include <driver/gpio.h>
+#include <freertos/FreeRTOS.h>
 
+#include <atomic>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 #include "device.h"
@@ -123,14 +127,21 @@ private:
 
 } // namespace light
 
+IRAM_ATTR void light_interrupt_handler(void *arg);
+
 class Light {
+	friend void light_interrupt_handler(void *arg);
+
 public:
-	Light(size_t index, gpio_num_t switch_pin, gpio_num_t relay_pin, bool active_low);
+	Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
+		gpio_num_t relay_pin, bool relay_active_low);
 	~Light() = delete;
 
 	inline size_t index() const { return index_; }
 
 	void attach(Device &device);
+
+	TickType_t run();
 
 	bool primary_on() const { return primary_on_; }
 	bool secondary_on() const { return secondary_on_; }
@@ -138,7 +149,7 @@ public:
 	bool persistent_enable() const { return persistent_enable_; }
 	bool on() const { return on_; }
 
-	void primary_switch(bool state);
+	void primary_switch(bool state, bool local);
 	void secondary_switch(bool state);
 	void temporary_enable(bool state);
 	void persistent_enable(bool state);
@@ -147,23 +158,38 @@ public:
 
 private:
 	static constexpr const char *TAG = "nutt.Light";
+	static constexpr const uint64_t DEBOUNCE_US = 20 * 1000;
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 
 	bool open_nvs();
 	bool persistent_enable_nvs();
 	void persistent_enable_nvs(bool state);
+	IRAM_ATTR void interrupt_handler();
 	void update_state();
+
+	inline int switch_active() const { return switch_active_low_ ? 0 : 1; }
+	inline int relay_active() const { return relay_active_low_ ? 0 : 1; }
+	inline int relay_inactive() const { return relay_active_low_ ? 1 : 0; }
 
 	const size_t index_;
 	const gpio_num_t switch_pin_;
+	const bool switch_active_low_;
 	const gpio_num_t relay_pin_;
-	const bool active_low_;
+	const bool relay_active_low_;
 
+	std::mutex mutex_;
 	bool primary_on_{false};
 	bool secondary_on_{false};
 	bool persistent_enable_{true};
 	bool temporary_enable_{true};
 	bool on_{false};
+
+	int switch_change_state_;
+	uint64_t switch_change_us_{0};
+	int switch_state_;
+	unsigned long switch_change_count_{0};
+	std::atomic<unsigned long> switch_change_count_irq_{0};
+	bool switch_active_;
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;

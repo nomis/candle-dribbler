@@ -19,6 +19,8 @@
 #pragma once
 
 #include <esp_app_desc.h>
+#include <esp_attr.h>
+#include <freertos/FreeRTOS.h>
 
 #include <functional>
 #include <vector>
@@ -37,6 +39,7 @@ public:
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
 	void request_refresh();
+	IRAM_ATTR void wake_up_isr();
 
 	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 		std::string version, const esp_app_desc_t *desc);
@@ -47,10 +50,12 @@ private:
 	static void scheduled_refresh(uint8_t param);
 
 	void do_refresh();
+	void run();
 
 	static Device *instance_;
 
 	ZigbeeDevice &zigbee_;
+	SemaphoreHandle_t semaphore_{nullptr};
 	std::vector<std::reference_wrapper<Light>> lights_;
 };
 

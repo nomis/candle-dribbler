@@ -8,6 +8,8 @@ idf_component_register(
     REQUIRES
 		app_update
 		driver
+		esp_timer
+		freertos
 		nvs_flash
 		pthread
 )
