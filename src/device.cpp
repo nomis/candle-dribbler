@@ -31,6 +31,7 @@
 namespace nutt {
 
 Device *Device::instance_{nullptr};
+uint8_t IdentifyEndpoint::power_source_{4}; /* DC */
 
 Device::Device() : zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
@@ -137,23 +138,30 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 	}
 }
 
-void IdentifyEndpoint::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) {
+void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
+
+	/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
+	ESP_ERROR_CHECK(esp_zb_cluster_update_attr(basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source_));
+
 	if (!manufacturer_.empty())
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ZigbeeString{manufacturer_, 32}.data()));
 
 	if (!model_.empty())
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ZigbeeString{model_, 32}.data()));
 
 	if (!url_.empty())
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_URL_ID, ZigbeeString{url_, 50}.data()));
 
-	Device::configure_basic_cluster(basic_cluster, "", esp_app_get_description());
-}
+	Device::configure_basic_cluster(*basic_cluster, "", esp_app_get_description());
 
-void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
+		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
 		esp_zb_identify_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
@@ -164,7 +172,9 @@ SoftwareEndpoint::SoftwareEndpoint(size_t index)
 		index_(index) {
 }
 
-void SoftwareEndpoint::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) {
+void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
+
 	const esp_partition_t *current = esp_ota_get_running_partition();
 	const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
 	const esp_partition_t *boot = esp_ota_get_boot_partition();
@@ -204,8 +214,11 @@ void SoftwareEndpoint::configure_basic_cluster(esp_zb_attribute_list_t &basic_cl
 
 	ESP_LOGI(TAG, "App Partition: %zu", index_);
 
-	Device::configure_basic_cluster(basic_cluster, version,
+	Device::configure_basic_cluster(*basic_cluster, version,
 		!esp_ota_get_partition_description(part, &desc) ? &desc : nullptr);
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
+		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
 } // namespace nutt

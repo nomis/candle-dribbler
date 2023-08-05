@@ -39,7 +39,6 @@ extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 namespace nutt {
 
 ZigbeeDevice *ZigbeeDevice::instance_{nullptr};
-uint8_t ZigbeeDevice::power_source_{4}; /* DC */
 
 ZigbeeString::ZigbeeString(const std::string_view text, size_t max_length) {
 	size_t length = std::min(text.length(), std::min(max_length, MAX_LENGTH));
@@ -75,24 +74,6 @@ ZigbeeDevice::ZigbeeDevice() {
 void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 	if (endpoints_.emplace(endpoint.id(), endpoint).second) {
 		auto *cluster_list = esp_zb_zcl_cluster_list_create();
-		esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
-
-		/*
-		 * Adding clusters to the list in a different order from the order they
-		 * were created causes the wrong roles to be configured 😣
-		 *
-		 * Reusing the basic cluster works but it may be unsupported, so create
-		 * it every time.
-		 */
-
-		/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
-		ESP_ERROR_CHECK(esp_zb_cluster_update_attr(basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source_));
-
-		endpoint.configure_basic_cluster(*basic_cluster);
-
-		ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(cluster_list,
-			basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 
 		endpoint.configure_cluster_list(*cluster_list);
 

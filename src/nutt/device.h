@@ -60,11 +60,11 @@ public:
 		const std::string_view model, const std::string_view url);
 	~IdentifyEndpoint() = delete;
 
-	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) override;
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
 	static constexpr const ep_id_t EP_ID = 1;
+	static uint8_t power_source_;
 
 	const std::string_view manufacturer_;
 	const std::string_view model_;
@@ -76,7 +76,7 @@ public:
 	SoftwareEndpoint(size_t index);
 	~SoftwareEndpoint() = delete;
 
-	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) override;
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
 	static constexpr const char *TAG = "nutt.Device";
