@@ -91,28 +91,10 @@ private:
 	bool state_;
 };
 
-class TemporaryEnableEndpoint: public ZigbeeEndpoint {
+class EnableEndpoint: public ZigbeeEndpoint {
 public:
-	TemporaryEnableEndpoint(Light &light);
-	~TemporaryEnableEndpoint() = delete;
-
-	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
-
-	void refresh();
-	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
-
-private:
-	static constexpr const char *TAG = "nutt.Light";
-	static constexpr const ep_id_t BASE_EP_ID = 40;
-
-	Light &light_;
-	bool state_;
-};
-
-class PersistentEnableEndpoint: public ZigbeeEndpoint {
-public:
-	PersistentEnableEndpoint(Light &light);
-	~PersistentEnableEndpoint() = delete;
+	EnableEndpoint(Light &light);
+	~EnableEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
@@ -147,14 +129,12 @@ public:
 	bool primary_on() const;
 	bool secondary_on() const;
 	bool switch_on() const;
-	bool temporary_enable() const;
-	bool persistent_enable() const;
+	bool enable() const;
 	bool on() const;
 
 	void primary_switch(bool state, bool local);
 	void secondary_switch(bool state);
-	void temporary_enable(bool state);
-	void persistent_enable(bool state);
+	void enable(bool state);
 
 	void request_refresh();
 	void refresh();
@@ -165,8 +145,8 @@ private:
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 
 	bool open_nvs();
-	bool persistent_enable_nvs();
-	void persistent_enable_nvs(bool state);
+	bool enable_nvs();
+	void enable_nvs(bool state);
 	IRAM_ATTR void interrupt_handler();
 	void update_state();
 
@@ -183,8 +163,7 @@ private:
 	mutable std::mutex mutex_;
 	bool primary_on_{false};
 	bool secondary_on_{false};
-	bool persistent_enable_{true};
-	bool temporary_enable_{true};
+	bool enable_{true};
 	bool on_{false};
 
 	int switch_change_state_;
@@ -197,7 +176,6 @@ private:
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;
 	light::SwitchStatusEndpoint &switch_status_ep_;
-	light::TemporaryEnableEndpoint &temporary_enable_ep_;
 
 	Device *device_{nullptr};
 };

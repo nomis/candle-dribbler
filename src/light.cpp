@@ -43,12 +43,10 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		gpio_num_t relay_pin, bool relay_active_low) : index_(index),
 		switch_pin_(switch_pin), switch_active_low_(switch_active_low),
 		relay_pin_(relay_pin), relay_active_low_(relay_active_low),
-		persistent_enable_(persistent_enable_nvs()),
-		temporary_enable_(persistent_enable_),
+		enable_(enable_nvs()),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
-		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}),
-		temporary_enable_ep_(*new light::TemporaryEnableEndpoint{*this}) {
+		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}) {
 	gpio_config_t switch_config = {
 		.pin_bit_mask = 1ULL << switch_pin_,
 		.mode = GPIO_MODE_INPUT,
@@ -82,7 +80,7 @@ bool Light::open_nvs() {
 	return !!nvs_;
 }
 
-bool Light::persistent_enable_nvs() {
+bool Light::enable_nvs() {
 	if (open_nvs()) {
 		uint8_t value = 1;
 
@@ -94,7 +92,7 @@ bool Light::persistent_enable_nvs() {
 	return true;
 }
 
-void Light::persistent_enable_nvs(bool state) {
+void Light::enable_nvs(bool state) {
 	if (open_nvs()) {
 		uint8_t value = state ? 1 : 0;
 
@@ -109,8 +107,7 @@ void Light::attach(Device &device) {
 		primary_ep_,
 		secondary_ep_,
 		switch_status_ep_,
-		temporary_enable_ep_,
-		*new light::PersistentEnableEndpoint{*this},
+		*new light::EnableEndpoint{*this},
 	});
 
 	ESP_ERROR_CHECK(gpio_set_intr_type(switch_pin_, GPIO_INTR_ANYEDGE));
@@ -172,14 +169,9 @@ bool Light::switch_on() const {
 	return switch_active_;
 }
 
-bool Light::temporary_enable() const {
+bool Light::enable() const {
 	std::lock_guard lock{mutex_};
-	return temporary_enable_;
-}
-
-bool Light::persistent_enable() const {
-	std::lock_guard lock{mutex_};
-	return persistent_enable_;
+	return enable_;
 }
 
 bool Light::on() const {
@@ -204,30 +196,18 @@ void Light::secondary_switch(bool state) {
 	update_state();
 }
 
-void Light::temporary_enable(bool state) {
+void Light::enable(bool state) {
 	std::lock_guard lock{mutex_};
 
-	ESP_LOGI(TAG, "Light %u set temporary enable %d -> %d",
-		index_, temporary_enable_, state);
-	temporary_enable_ = state;
-	update_state();
-}
-
-void Light::persistent_enable(bool state) {
-	std::lock_guard lock{mutex_};
-
-	ESP_LOGI(TAG, "Light %u set persistent enable %d -> %d",
-		index_, persistent_enable_, state);
-	persistent_enable_nvs(state);
-	persistent_enable_ = state;
-	ESP_LOGI(TAG, "Light %u set temporary enable %d -> %d (auto)",
-		index_, temporary_enable_, state);
-	temporary_enable_ = state;
+	ESP_LOGI(TAG, "Light %u set enable %d -> %d",
+		index_, enable_, state);
+	enable_nvs(state);
+	enable_ = state;
 	update_state();
 }
 
 void Light::update_state() {
-	bool on = (temporary_enable_ && primary_on_) || secondary_on_;
+	bool on = (enable_ && primary_on_) || secondary_on_;
 	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
 	on_ = on;
 	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
@@ -242,7 +222,6 @@ void Light::refresh() {
 	primary_ep_.refresh();
 	secondary_ep_.refresh();
 	switch_status_ep_.refresh();
-	temporary_enable_ep_.refresh();
 }
 
 namespace light {
@@ -373,13 +352,13 @@ uint8_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_
 	return -1;
 }
 
-TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
+EnableEndpoint::EnableEndpoint(Light &light)
 		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID),
-		light_(light), state_(light_.temporary_enable()) {
+		light_(light), state_(light_.enable()) {
 }
 
-void TemporaryEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void EnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg = {
 		.on_off = state_,
 	};
@@ -388,53 +367,11 @@ void TemporaryEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &clus
 		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
-void TemporaryEnableEndpoint::refresh() {
-	bool new_state = light_.temporary_enable();
-
-	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
-
-		ESP_LOGI(TAG, "Light %u report temporary enable %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
-		state_ = new_state;
-	}
-}
-
-uint8_t TemporaryEnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+uint8_t EnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 			state_ = *(uint8_t *)value != 0;
-			light_.temporary_enable(state_);
-			return 0;
-		}
-	}
-	return -1;
-}
-
-PersistentEnableEndpoint::PersistentEnableEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID),
-		light_(light), state_(light_.persistent_enable()) {
-}
-
-void PersistentEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t switch_cfg = {
-		.on_off = state_,
-	};
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-}
-
-uint8_t PersistentEnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.persistent_enable(state_);
+			light_.enable(state_);
 			return 0;
 		}
 	}
