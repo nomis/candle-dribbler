@@ -18,8 +18,6 @@
 
 #include "nutt/zigbee.h"
 
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_system.h>
@@ -27,6 +25,9 @@
 
 #include <algorithm>
 #include <string_view>
+#include <thread>
+
+#include "nutt/thread.h"
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 	nutt::ZigbeeDevice::instance_->signal_handler(
@@ -107,18 +108,16 @@ void ZigbeeDevice::start() {
 	esp_zb_device_add_set_attr_value_cb(attr_value_cb);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
 	ESP_ERROR_CHECK(esp_zb_start(true /* TODO true */));
-	xTaskCreate(task, "zigbee_main", 4096, this, 5, NULL); /* TODO std::thread */
+
+	std::thread t;
+	make_thread(t, "zigbee_main", 4096, 5, &ZigbeeDevice::run, this);
+	t.detach();
 }
 
 void ZigbeeDevice::run() {
 	esp_zb_main_loop_iteration();
 	ESP_LOGE(TAG, "Zigbee main loop stopped");
 	esp_restart();
-}
-
-void ZigbeeDevice::task(void *arg) {
-	ZigbeeDevice *dev = static_cast<ZigbeeDevice*>(arg);
-	dev->run();
 }
 
 void ZigbeeDevice::attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value) {

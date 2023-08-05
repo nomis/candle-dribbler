@@ -9,6 +9,7 @@ idf_component_register(
 		app_update
 		driver
 		nvs_flash
+		pthread
 )
 
 target_compile_options(

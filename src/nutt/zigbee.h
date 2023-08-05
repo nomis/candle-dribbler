@@ -96,7 +96,6 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.ZigbeeDevice";
 
-	static void task(void *arg);
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static void attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
 
