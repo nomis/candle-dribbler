@@ -82,37 +82,31 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 
 	if (desc) {
 		if (std::strlen(desc->date)) {
-			std::string month{desc->date};
+			constexpr const size_t DATE_CODE_LEN = 16;
+			std::string time = desc->time;
 
-			month.resize(3);
+			date_code.reserve(DATE_CODE_LEN);
 
-			date_code += desc->date[7];
-			date_code += desc->date[8];
-			date_code += desc->date[9];
-			date_code += desc->date[10];
-			date_code += desc->date[4] == ' ' ? '0' : desc->date[4];
-			date_code += desc->date[5];
-
-			if (month == "Jan") { date_code += "01"; }
-			else if (month == "Feb") { date_code += "02"; }
-			else if (month == "Mar") { date_code += "03"; }
-			else if (month == "Apr") { date_code += "04"; }
-			else if (month == "May") { date_code += "05"; }
-			else if (month == "Jun") { date_code += "06"; }
-			else if (month == "Jul") { date_code += "07"; }
-			else if (month == "Aug") { date_code += "08"; }
-			else if (month == "Sep") { date_code += "09"; }
-			else if (month == "Oct") { date_code += "10"; }
-			else if (month == "Nov") { date_code += "11"; }
-			else if (month == "Dec") { date_code += "12"; }
-
-			for (char c : desc->time) {
+			for (char c : desc->date) {
 				if (c >= '0' && c <= '9')
 					date_code += c;
-
-				if (date_code.length() >= 16)
-					break;
 			}
+
+			date_code += 'T';
+
+			for (char c : time) {
+				if (c >= '0' && c <= '9') {
+					date_code += c;
+				} else if (c == ' ') {
+					break;
+				}
+			}
+
+			if (time.rfind(" +0000", std::string::npos) != std::string::npos)
+				date_code += 'Z';
+
+			if (date_code.length() > DATE_CODE_LEN)
+				date_code.resize(DATE_CODE_LEN);
 		}
 
 		if (!version.empty())
