@@ -85,7 +85,7 @@ public:
 
 private:
 	static constexpr const char *TAG = "nutt.Light";
-	static constexpr const ep_id_t BASE_EP_ID = 30;
+	static constexpr const ep_id_t BASE_EP_ID = 60;
 
 	Light &light_;
 	bool state_;
@@ -102,7 +102,7 @@ public:
 
 private:
 	static constexpr const char *TAG = "nutt.Light";
-	static constexpr const ep_id_t BASE_EP_ID = 50;
+	static constexpr const ep_id_t BASE_EP_ID = 70;
 
 	Light &light_;
 	bool state_;
