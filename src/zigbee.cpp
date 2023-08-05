@@ -150,13 +150,11 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 	case ESP_ZB_BDB_SIGNAL_DEVICE_FIRST_START:
 	case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
-		if (status == ESP_OK) {
-			ESP_LOGI(TAG, "Start network steering");
-			ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
-		} else {
-			/* commissioning failed */
+		if (status != ESP_OK) {
 			ESP_LOGW(TAG, "Failed to initialize Zigbee stack (status: %d)", status);
 		}
+		ESP_LOGI(TAG, "Start network steering");
+		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
 		break;
 
 	case ESP_ZB_BDB_SIGNAL_STEERING:
@@ -169,6 +167,26 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		} else {
 			ESP_LOGI(TAG, "Network steering was not successful (status: %d)", status);
 			esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+		}
+		break;
+
+	case ESP_ZB_ZDO_SIGNAL_LEAVE:
+		if (status == ESP_OK && data) {
+			esp_zb_zdo_signal_leave_params_t *params = static_cast<esp_zb_zdo_signal_leave_params_t*>(data);
+
+			switch (params->leave_type) {
+			case ESP_ZB_NWK_LEAVE_TYPE_RESET:
+				ESP_LOGE(TAG, "Device reset");
+				break;
+
+			case ESP_ZB_NWK_LEAVE_TYPE_REJOIN:
+				ESP_LOGE(TAG, "Device rejoin");
+				break;
+
+			default:
+				ESP_LOGE(TAG, "Device removed (type: %u)", params->leave_type);
+				break;
+			}
 		}
 		break;
 
