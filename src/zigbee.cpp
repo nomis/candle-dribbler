@@ -41,11 +41,11 @@ namespace nutt {
 ZigbeeDevice *ZigbeeDevice::instance_{nullptr};
 uint8_t ZigbeeDevice::power_source_{4}; /* DC */
 
-ZigbeeString::ZigbeeString(const std::string_view text) {
-	size_t length = std::max(text.length(), MAX_LENGTH);
+ZigbeeString::ZigbeeString(const std::string_view text, size_t max_length) {
+	size_t length = std::min(text.length(), std::min(max_length, MAX_LENGTH));
 
-	value_.reserve(1 + text.length());
-	value_.push_back(text.length());
+	value_.reserve(1 + length);
+	value_.push_back(length);
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
 }
 

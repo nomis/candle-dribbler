@@ -35,7 +35,7 @@ class ZigbeeEndpoint;
 
 class ZigbeeString {
 public:
-	explicit ZigbeeString(const std::string_view text);
+	explicit ZigbeeString(const std::string_view text, size_t max_length = MAX_LENGTH);
 	~ZigbeeString() = default;
 
 	inline char* data() { return value_.data(); }

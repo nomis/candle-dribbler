@@ -82,10 +82,7 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 
 	if (desc) {
 		if (std::strlen(desc->date)) {
-			constexpr const size_t DATE_CODE_LEN = 16;
 			std::string time = desc->time;
-
-			date_code.reserve(DATE_CODE_LEN);
 
 			for (char c : desc->date) {
 				if (c >= '0' && c <= '9')
@@ -104,9 +101,6 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 
 			if (time.rfind(" +0000", std::string::npos) != std::string::npos)
 				date_code += 'Z';
-
-			if (date_code.length() > DATE_CODE_LEN)
-				date_code.resize(DATE_CODE_LEN);
 		}
 
 		if (!version.empty())
@@ -121,28 +115,28 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 	ESP_LOGI(TAG, "Date code: %s", date_code.c_str());
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
-		ZigbeeString{date_code}.data()));
+		ZigbeeString{date_code, 16}.data()));
 
 	if (!version.empty()) {
 		ESP_LOGI(TAG, "Version: %s", version.c_str());
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
-			ZigbeeString{version}.data()));
+			ZigbeeString{version, 50}.data()));
 	}
 }
 
 void IdentifyEndpoint::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster) {
 	if (!manufacturer_.empty())
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ZigbeeString{manufacturer_}.data()));
+			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ZigbeeString{manufacturer_, 32}.data()));
 
 	if (!model_.empty())
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ZigbeeString{model_}.data()));
+			ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ZigbeeString{model_, 32}.data()));
 
 	if (!url_.empty())
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_URL_ID, ZigbeeString{url_}.data()));
+			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_URL_ID, ZigbeeString{url_, 50}.data()));
 
 	Device::configure_basic_cluster(basic_cluster, "", esp_app_get_description());
 }
