@@ -46,6 +46,7 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		enable_(enable_nvs()),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
+		tertiary_ep_(*new light::TertiaryEndpoint{*this}),
 		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}) {
 	gpio_config_t switch_config = {
 		.pin_bit_mask = 1ULL << switch_pin_,
@@ -106,6 +107,7 @@ void Light::attach(Device &device) {
 	device.add(*this, {
 		primary_ep_,
 		secondary_ep_,
+		tertiary_ep_,
 		switch_status_ep_,
 		*new light::EnableEndpoint{*this},
 	});
@@ -135,6 +137,9 @@ TickType_t Light::run() {
 			switch_state_ = switch_change_state_;
 			switch_active_ = switch_state_ == switch_active();
 			primary_switch(switch_active_, true);
+			if (!switch_active_) {
+				secondary_switch(false, true);
+			}
 		} else {
 			wait = std::max(static_cast<uint64_t>(0U), (DEBOUNCE_US - (now_us - switch_change_us_))) / static_cast<uint64_t>(1000U) / portTICK_PERIOD_MS;
 		}
@@ -164,6 +169,11 @@ bool Light::secondary_on() const {
 	return secondary_on_;
 }
 
+bool Light::tertiary_on() const {
+	std::lock_guard lock{mutex_};
+	return tertiary_on_;
+}
+
 bool Light::switch_on() const {
 	std::lock_guard lock{mutex_};
 	return switch_active_;
@@ -187,12 +197,21 @@ void Light::primary_switch(bool state, bool local) {
 	update_state();
 }
 
-void Light::secondary_switch(bool state) {
+void Light::secondary_switch(bool state, bool local) {
 	std::lock_guard lock{mutex_};
 
-	ESP_LOGI(TAG, "Light %u set secondary switch %d -> %d",
-		index_, secondary_on_, state);
+	ESP_LOGI(TAG, "Light %u set secondary switch %d -> %d (%s)",
+		index_, secondary_on_, state, local ? "local" : "remote");
 	secondary_on_ = state;
+	update_state();
+}
+
+void Light::tertiary_switch(bool state) {
+	std::lock_guard lock{mutex_};
+
+	ESP_LOGI(TAG, "Light %u set tertiary switch %d -> %d",
+		index_, tertiary_on_, state);
+	tertiary_on_ = state;
 	update_state();
 }
 
@@ -207,7 +226,7 @@ void Light::enable(bool state) {
 }
 
 void Light::update_state() {
-	bool on = (enable_ && primary_on_) || secondary_on_;
+	bool on = (enable_ && primary_on_) || secondary_on_ || tertiary_on_;
 	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
 	on_ = on;
 	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
@@ -221,6 +240,7 @@ void Light::request_refresh() {
 void Light::refresh() {
 	primary_ep_.refresh();
 	secondary_ep_.refresh();
+	tertiary_ep_.refresh();
 	switch_status_ep_.refresh();
 }
 
@@ -303,7 +323,49 @@ uint8_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 			state_ = *(uint8_t *)value != 0;
-			light_.secondary_switch(state_);
+			light_.secondary_switch(state_, false);
+			return 0;
+		}
+	}
+	return -1;
+}
+
+TertiaryEndpoint::TertiaryEndpoint(Light &light)
+		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
+		light_(light), state_(light_.tertiary_on()) {
+}
+
+void TertiaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_on_off_cluster_cfg_t light_cfg = {
+		.on_off = state_,
+	};
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
+		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+}
+
+void TertiaryEndpoint::refresh() {
+	bool new_state = light_.tertiary_on();
+
+	if (new_state != state_) {
+		uint8_t value = new_state ? 1 : 0;
+
+		ESP_LOGI(TAG, "Light %u report tertiary switch %u", light_.index(), value);
+
+		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
+			&value);
+		state_ = new_state;
+	}
+}
+
+uint8_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
+		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+			state_ = *(uint8_t *)value != 0;
+			light_.tertiary_switch(state_);
 			return 0;
 		}
 	}

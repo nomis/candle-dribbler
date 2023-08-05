@@ -73,6 +73,24 @@ private:
 	bool state_;
 };
 
+class TertiaryEndpoint: public ZigbeeEndpoint {
+public:
+	TertiaryEndpoint(Light &light);
+	~TertiaryEndpoint() = delete;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+
+	void refresh();
+	uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) override;
+
+private:
+	static constexpr const char *TAG = "nutt.Light";
+	static constexpr const ep_id_t BASE_EP_ID = 30;
+
+	Light &light_;
+	bool state_;
+};
+
 class SwitchStatusEndpoint: public ZigbeeEndpoint {
 public:
 	SwitchStatusEndpoint(Light &light);
@@ -128,12 +146,14 @@ public:
 
 	bool primary_on() const;
 	bool secondary_on() const;
+	bool tertiary_on() const;
 	bool switch_on() const;
 	bool enable() const;
 	bool on() const;
 
 	void primary_switch(bool state, bool local);
-	void secondary_switch(bool state);
+	void secondary_switch(bool state, bool local);
+	void tertiary_switch(bool state);
 	void enable(bool state);
 
 	void request_refresh();
@@ -163,6 +183,7 @@ private:
 	mutable std::mutex mutex_;
 	bool primary_on_{false};
 	bool secondary_on_{false};
+	bool tertiary_on_{false};
 	bool enable_{true};
 	bool on_{false};
 
@@ -175,6 +196,7 @@ private:
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;
+	light::TertiaryEndpoint &tertiary_ep_;
 	light::SwitchStatusEndpoint &switch_status_ep_;
 
 	Device *device_{nullptr};
