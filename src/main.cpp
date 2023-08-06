@@ -26,7 +26,7 @@
 using namespace nutt;
 
 #ifndef NUTT_MAX_LIGHTS
-static constexpr const size_t MAX_LIGHTS = 4;
+static constexpr const size_t MAX_LIGHTS = 1;
 #else
 static constexpr const size_t MAX_LIGHTS = NUTT_MAX_LIGHTS;
 #endif
