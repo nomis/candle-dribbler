@@ -113,8 +113,9 @@ IdentifyEndpoint::IdentifyEndpoint(const std::string_view manufacturer,
 }
 
 void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
-		std::string version, const esp_app_desc_t *desc) {
+		std::string label, const esp_app_desc_t *desc) {
 	std::string date_code;
+	std::string version;
 
 	if (desc) {
 		if (std::strlen(desc->date)) {
@@ -139,22 +140,14 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 				date_code += 'Z';
 		}
 
-		if (!version.empty() && version.back() != ' ')
-			version += ' ';
+		if (!label.empty())
+			label += " | ";
 
-		version += desc->project_name;
+		label += desc->project_name;
 
-		if (!version.empty() && version.back() != ' ')
-			version += ' ';
-
-		version += desc->version;
-
-		if (!version.empty() && version.back() != ' ')
-			version += ' ';
-
-		version += "[esp-idf ";
+		version = desc->version;
+		version += " | ";
 		version += desc->idf_ver;
-		version += ']';
 	}
 
 	if (date_code.empty())
@@ -165,11 +158,18 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
 		ZigbeeString{date_code, 16}.data()));
 
+	if (!label.empty()) {
+		ESP_LOGI(TAG, "Label: %s", label.c_str());
+		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+			ZigbeeString{label, 70}.data()));
+	}
+
 	if (!version.empty()) {
 		ESP_LOGI(TAG, "Version: %s", version.c_str());
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
-			ZigbeeString{version, 50}.data()));
+			ZigbeeString{version, 70}.data()));
 	}
 }
 
@@ -215,21 +215,21 @@ void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	const esp_partition_t *boot = esp_ota_get_boot_partition();
 	const esp_partition_t *part = current;
 	esp_app_desc_t desc;
-	std::string version;
+	std::string label;
 
 	for (int i = 0; i < esp_ota_get_app_partition_count() && i <= index_;
 			i++, part = esp_ota_get_next_update_partition(part)) {}
 
-	version = part->label;
+	label = part->label;
 
 	if (part == current) {
-		version += " [current]";
+		label += " [current]";
 	}
 	if (part == next) {
-		version += " [next]";
+		label += " [next]";
 	}
 	if (part == boot) {
-		version += " [boot]";
+		label += " [boot]";
 	}
 
 	esp_ota_img_states_t state;
@@ -237,19 +237,19 @@ void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	if (esp_ota_get_state_partition(part, &state))
 		state = ESP_OTA_IMG_UNDEFINED;
 
-	version += ' ';
+	label += ' ';
 	switch (state) {
-	case ESP_OTA_IMG_NEW: version += "new"; break;
-	case ESP_OTA_IMG_PENDING_VERIFY: version += "pending-verify"; break;
-	case ESP_OTA_IMG_VALID: version += "valid"; break;
-	case ESP_OTA_IMG_INVALID: version += "invalid"; break;
-	case ESP_OTA_IMG_ABORTED: version += "aborted"; break;
-	default: version += "undefined"; break;
+	case ESP_OTA_IMG_NEW: label += "new"; break;
+	case ESP_OTA_IMG_PENDING_VERIFY: label += "pending-verify"; break;
+	case ESP_OTA_IMG_VALID: label += "valid"; break;
+	case ESP_OTA_IMG_INVALID: label += "invalid"; break;
+	case ESP_OTA_IMG_ABORTED: label += "aborted"; break;
+	default: label += "undefined"; break;
 	}
 
 	ESP_LOGI(TAG, "App Partition: %zu", index_);
 
-	Device::configure_basic_cluster(*basic_cluster, version,
+	Device::configure_basic_cluster(*basic_cluster, label,
 		!esp_ota_get_partition_description(part, &desc) ? &desc : nullptr);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,

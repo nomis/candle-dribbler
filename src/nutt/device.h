@@ -42,7 +42,7 @@ public:
 	IRAM_ATTR void wake_up_isr();
 
 	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
-		std::string version, const esp_app_desc_t *desc);
+		std::string label, const esp_app_desc_t *desc);
 
 private:
 	static constexpr const char *TAG = "nutt.Device";
