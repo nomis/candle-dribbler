@@ -69,6 +69,7 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 
 	switch_change_state_ = switch_state_ = gpio_get_level(switch_pin_);
 	switch_active_ = switch_state_ == switch_active();
+	ESP_LOGI(TAG, "Light %u switch is %d", index_, switch_active_);
 
 	ESP_ERROR_CHECK(gpio_isr_handler_add(switch_pin_, light_interrupt_handler, this));
 }
