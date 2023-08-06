@@ -195,7 +195,7 @@ void Light::primary_switch(bool state, bool local) {
 		index_, primary_on_, state, local ? "local" : "remote");
 	primary_on_ = state;
 
-	if (enable_ && !state) {
+	if (!state) {
 		secondary_switch_locked(state, local);
 	}
 	update_state();
