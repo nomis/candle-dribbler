@@ -8,4 +8,59 @@ Griffin AirClick RF receivers.
 
 Requires an ESP32-H2 or ESP32-C6.
 
-Work in progress, doesn't do anything yet.
+Work in progress, doesn't do any RF or OTA updates yet.
+
+	...some very big candles that were just lava streams of wax, and a raven on
+	a skull.
+
+	"They get it all out of a catalogue," said the raven. "Believe me. It all
+	comes in a big box. You think candles get dribbly like that by themselves?
+	That's three days' work for a skilled candle dribbler."
+
+	"You're just making that up," said Susan.
+	"Anyway, you can't just buy a skull."
+
+	-- `Terry Pratchett <https://en.wikipedia.org/wiki/Terry_Pratchett>`_
+	(`Soul Music, 1994 <https://en.wikipedia.org/wiki/Soul_Music_(novel)>`_)
+
+Usage
+-----
+
+Each physical light has a switch GPIO and a relay GPIO and presents the
+following endpoints:
+
+* Primary Light
+* Secondary Light
+* Tertiary Light
+* Switch Status (Binary Input)
+* Enable Switch
+
+The **Primary Light** will be set on/off whenever the switch GPIO is activated
+or deactivated. It does not function as a two-way switch.
+
+The reason for having so many light endpoints is that it provides the unmodified
+state of the physical switch when implementing automation on the virtual
+switches. If a timer is used to turn on/off the light (secondary/tertiary
+endpoints), it will remain on while the primary switch is used instead of being
+unaware that the light should now stay on.
+
+The relay will be activated under the following conditions:
+
+* The **Primary Light** is on *and* the **Enable Switch** is on
+* The **Secondary Light** is on
+* The **Tertiary Light** is on
+
+Whenever the **Primary Light** is turned off (*and* the **Enable Switch** is on)
+the **Secondary Light** will also be turned off. This can be used to implement
+"turn on now, but cancel when the light when switched off" behaviour locally
+without relying on remote communication (after turning on the light). Useful for
+preempting motion sensors or automatically turning the light on for a period of
+time but then having the light turn off normally *without* having a conflict
+between the physical and virtual switch states.
+
+The **Enable Switch** can be used to prevent the **Primary Light** from having
+an effect.
+
+All of the **Light** endpoints can be modified remotely, with the **Switch
+Status** being a read-only representation of the current switch state (which is
+a useful record of activity if that is a motion detector).
