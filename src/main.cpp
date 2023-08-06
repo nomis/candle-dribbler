@@ -43,12 +43,15 @@ extern "C" void app_main() {
 
 	auto &device = *new Device{};
 
-	if (MAX_LIGHTS >= 1) (new Light{1, GPIO_NUM_3,  true, GPIO_NUM_18, true})->attach(device);
-	if (MAX_LIGHTS >= 2) (new Light{2, GPIO_NUM_2,  true, GPIO_NUM_19, true})->attach(device);
-	if (MAX_LIGHTS >= 3) (new Light{3, GPIO_NUM_11, true, GPIO_NUM_20, true})->attach(device);
-	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, true, GPIO_NUM_21, true})->attach(device);
-	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  true, GPIO_NUM_22, true})->attach(device);
-	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  true, GPIO_NUM_23, true})->attach(device);
-
+	/*                                              Active              Active
+	 *                                   Switch     Low    Relay        Low
+	 *                                 -----------  -----  -----------  -----
+	 */
+	if (MAX_LIGHTS >= 1) (new Light{1, GPIO_NUM_3,  true,  GPIO_NUM_18, true })->attach(device);
+	if (MAX_LIGHTS >= 2) (new Light{2, GPIO_NUM_2,  true,  GPIO_NUM_19, true })->attach(device);
+	if (MAX_LIGHTS >= 3) (new Light{3, GPIO_NUM_11, true,  GPIO_NUM_20, true })->attach(device);
+	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, true,  GPIO_NUM_21, true })->attach(device);
+	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  true,  GPIO_NUM_22, true })->attach(device);
+	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  true,  GPIO_NUM_23, true })->attach(device);
 	device.start();
 }
