@@ -152,6 +152,8 @@ void light_interrupt_handler(void *arg) {
 void Light::interrupt_handler() {
 	Device *device = device_;
 
+	switch_change_count_++;
+
 	if (device)
 		device->wake_up_isr();
 }
