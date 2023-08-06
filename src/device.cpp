@@ -198,7 +198,7 @@ void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
-		esp_zb_identify_cluster_create(NULL), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
 SoftwareEndpoint::SoftwareEndpoint(size_t index)
