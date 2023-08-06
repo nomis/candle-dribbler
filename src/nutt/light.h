@@ -168,6 +168,8 @@ private:
 	bool enable_nvs();
 	void enable_nvs(bool state);
 	IRAM_ATTR void interrupt_handler();
+
+	void secondary_switch_locked(bool state, bool local);
 	void update_state();
 
 	inline int switch_active() const { return switch_active_low_ ? 0 : 1; }

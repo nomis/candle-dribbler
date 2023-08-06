@@ -137,9 +137,6 @@ TickType_t Light::run() {
 			switch_state_ = switch_change_state_;
 			switch_active_ = switch_state_ == switch_active();
 			primary_switch(switch_active_, true);
-			if (!switch_active_) {
-				secondary_switch(false, true);
-			}
 		} else {
 			wait = std::max(static_cast<uint64_t>(0U), (DEBOUNCE_US - (now_us - switch_change_us_))) / static_cast<uint64_t>(1000U) / portTICK_PERIOD_MS;
 		}
@@ -194,16 +191,24 @@ void Light::primary_switch(bool state, bool local) {
 	ESP_LOGI(TAG, "Light %u set primary switch %d -> %d (%s)",
 		index_, primary_on_, state, local ? "local" : "remote");
 	primary_on_ = state;
+
+	if (!state) {
+		secondary_switch_locked(state, local);
+	}
 	update_state();
 }
 
 void Light::secondary_switch(bool state, bool local) {
 	std::lock_guard lock{mutex_};
 
+	secondary_switch_locked(state, local);
+	update_state();
+}
+
+void Light::secondary_switch_locked(bool state, bool local) {
 	ESP_LOGI(TAG, "Light %u set secondary switch %d -> %d (%s)",
 		index_, secondary_on_, state, local ? "local" : "remote");
 	secondary_on_ = state;
-	update_state();
 }
 
 void Light::tertiary_switch(bool state) {
