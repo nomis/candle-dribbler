@@ -23,6 +23,7 @@ Work in progress, doesn't do any RF or OTA updates yet.
 	-- `Terry Pratchett <https://en.wikipedia.org/wiki/Terry_Pratchett>`_
 	(`Soul Music, 1994 <https://en.wikipedia.org/wiki/Soul_Music_(novel)>`_)
 
+
 Usage
 -----
 
@@ -66,6 +67,10 @@ All of the **Light** endpoints can be modified remotely, with the **Switch
 Status** being a read-only representation of the current switch state (which is
 a useful record of activity if that is a motion detector).
 
+The power on state is all lights off. The **Enable Switch** setting is stored in
+flash so it's persistent.
+
+
 Build
 -----
 
@@ -90,3 +95,19 @@ Build::
 Flash::
 
 	idf.py flash
+
+
+Help
+----
+
+I have 15 "light" entities in Home Assistant, which is which?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Zigbee specifications are thousands of pages long and it supports 240
+endpoints per device but there's no attribute to describe on/off endpoints if
+you have more than one of the same type!
+
+The endpoints should be in some kind of logical order, which means you'll have
+all of the **Primary Light**\ s first, then the **Secondary Light**\ s followed
+by the **Tertiary Light**\ s. Each of these groupings will be in the order of
+the physical light GPIOs.
