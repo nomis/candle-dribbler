@@ -27,22 +27,16 @@ Usage
 -----
 
 Each physical light has a switch GPIO and a relay GPIO and presents the
-following endpoints:
+following Zigbee endpoints:
 
-* Primary Light
-* Secondary Light
-* Tertiary Light
-* Switch Status (Binary Input)
+* Primary Light - *physical switch*
+* Secondary Light - *virtual switch*
+* Tertiary Light - *virtual switch*
+* Switch Status (Binary Input) - *physical switch*
 * Enable Switch
 
 The **Primary Light** will be set on/off whenever the switch GPIO is activated
 or deactivated. It does not function as a two-way switch.
-
-The reason for having so many light endpoints is that it provides the unmodified
-state of the physical switch when implementing automation on the virtual
-switches. If a timer is used to turn on/off the light (secondary/tertiary
-endpoints), it will remain on while the primary switch is used instead of being
-unaware that the light should now stay on.
 
 The relay will be activated under the following conditions:
 
@@ -50,16 +44,23 @@ The relay will be activated under the following conditions:
 * The **Secondary Light** is on
 * The **Tertiary Light** is on
 
-Whenever the **Primary Light** is turned off (*and* the **Enable Switch** is on)
-the **Secondary Light** will also be turned off. This can be used to implement
-"turn on now, but cancel when the light when switched off" behaviour locally
-without relying on remote communication (after turning on the light). Useful for
-preempting motion sensors or automatically turning the light on for a period of
-time but then having the light turn off normally *without* having a conflict
-between the physical and virtual switch states.
+The reason for having so many light endpoints is that it provides the unmodified
+state of the physical switch when implementing automation on the virtual
+switches. If a timer is used to turn on/off the light using the secondary or
+tertiary endpoints, it will remain separate from any use of the primary switch
+instead of being unaware that the light should now stay on.
 
-The **Enable Switch** can be used to prevent the **Primary Light** from having
-an effect.
+Whenever the **Primary Light** is turned off the **Secondary Light** will also
+be turned off. This can be used to implement "turn on now, but cancel when the
+light is switched off" behaviour locally without relying on remote communication
+(after turning on the light). Useful for preempting motion sensors or
+automatically turning the light on for a period of time but then having the
+light turn off normally *without* having a conflict between tracking the
+physical and virtual switch states.
+
+The **Enable Switch** can be used to prevent the **Primary Light** from
+activating the relay, e.g. to ignore motion sensor activations when changing
+bulbs.
 
 All of the **Light** endpoints can be modified remotely, with the **Switch
 Status** being a read-only representation of the current switch state (which is
