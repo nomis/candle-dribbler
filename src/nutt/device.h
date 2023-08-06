@@ -36,6 +36,9 @@ public:
 	Device();
 	~Device() = delete;
 
+	/* Assumes 2 OTA partitions are configured */
+	static constexpr const size_t NUM_EP_PER_DEVICE = 3;
+
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
 	void request_refresh();

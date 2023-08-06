@@ -64,3 +64,28 @@ an effect.
 All of the **Light** endpoints can be modified remotely, with the **Switch
 Status** being a read-only representation of the current switch state (which is
 a useful record of activity if that is a motion detector).
+
+Build
+-----
+
+This project can be built with the `ESP-IDF build system
+<https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-guides/build-system.html`_.
+
+Configure::
+
+	idf.py set-target esp32c6
+	idf.py menuconfig
+
+Under "Component config" you'll find "Candle Dribbler" where you can configure
+the number of lights supported and whether switches/relays are active low or not.
+
+The GPIO configuration assumes you're using an `ESP32-C6-DevKitC-1
+<https://docs.espressif.com/projects/espressif-esp-dev-kits/en/latest/esp32c6/esp32-c6-devkitc-1/>`_.
+
+Build::
+
+	idf.py build
+
+Flash::
+
+	idf.py flash

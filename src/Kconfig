@@ -1,0 +1,23 @@
+menu "Candle Dribbler"
+	depends on ZB_ENABLED
+
+config NUTT_MAX_LIGHTS
+	int "Number of lights supported"
+	range 1 7
+	default 1
+	help
+		Configure number of lights that are supported.
+
+config NUTT_SWITCH_ACTIVE_LOW
+	bool "Switches are active low"
+	default y
+	help
+		Configure whether switch signalling is active low or high.
+
+config NUTT_RELAY_ACTIVE_LOW
+	bool "Relays are active low"
+	default y
+	help
+		Configure whether relay signalling is active low or high.
+
+endmenu

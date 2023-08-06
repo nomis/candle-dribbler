@@ -18,6 +18,7 @@
 
 #include <esp_err.h>
 #include <nvs_flash.h>
+#include <sdkconfig.h>
 #include <driver/gpio.h>
 
 #include "nutt/device.h"
@@ -25,11 +26,12 @@
 
 using namespace nutt;
 
-#ifndef NUTT_MAX_LIGHTS
-static constexpr const size_t MAX_LIGHTS = 1;
-#else
-static constexpr const size_t MAX_LIGHTS = NUTT_MAX_LIGHTS;
-#endif
+static constexpr const size_t MAX_LIGHTS = CONFIG_NUTT_MAX_LIGHTS;
+static constexpr const bool SWITCH_ACTIVE_LOW = CONFIG_NUTT_SWITCH_ACTIVE_LOW;
+static constexpr const bool RELAY_ACTIVE_LOW = CONFIG_NUTT_RELAY_ACTIVE_LOW;
+
+static_assert(nutt::Device::NUM_EP_PER_DEVICE + MAX_LIGHTS * nutt::Light::NUM_EP_PER_LIGHT <= ZB_MAX_EP_NUMBER,
+	"You'll need to ask Espressif to let you use more endpoints");
 
 extern "C" void app_main() {
 	esp_err_t err = nvs_flash_init();
@@ -43,15 +45,15 @@ extern "C" void app_main() {
 
 	auto &device = *new Device{};
 
-	/*                                              Active              Active
-	 *                                   Switch     Low    Relay        Low
-	 *                                 -----------  -----  -----------  -----
+	/*                                 Switch       Active Low          Relay        Active Low
+	 *                                 -----------  -----------------   -----------  ----------------
 	 */
-	if (MAX_LIGHTS >= 1) (new Light{1, GPIO_NUM_3,  true,  GPIO_NUM_18, true })->attach(device);
-	if (MAX_LIGHTS >= 2) (new Light{2, GPIO_NUM_2,  true,  GPIO_NUM_19, true })->attach(device);
-	if (MAX_LIGHTS >= 3) (new Light{3, GPIO_NUM_11, true,  GPIO_NUM_20, true })->attach(device);
-	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, true,  GPIO_NUM_21, true })->attach(device);
-	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  true,  GPIO_NUM_22, true })->attach(device);
-	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  true,  GPIO_NUM_23, true })->attach(device);
+	if (MAX_LIGHTS >= 1) (new Light{1, GPIO_NUM_3,  SWITCH_ACTIVE_LOW,  GPIO_NUM_18, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 2) (new Light{2, GPIO_NUM_2,  SWITCH_ACTIVE_LOW,  GPIO_NUM_19, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 3) (new Light{3, GPIO_NUM_11, SWITCH_ACTIVE_LOW,  GPIO_NUM_20, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, SWITCH_ACTIVE_LOW,  GPIO_NUM_21, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  SWITCH_ACTIVE_LOW,  GPIO_NUM_22, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  SWITCH_ACTIVE_LOW,  GPIO_NUM_23, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 7) (new Light{7, GPIO_NUM_7,  SWITCH_ACTIVE_LOW,  GPIO_NUM_6,  RELAY_ACTIVE_LOW })->attach(device);
 	device.start();
 }

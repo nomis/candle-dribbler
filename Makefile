@@ -1,9 +1,12 @@
-.PHONY: all conf build clean flash app-flash monitor
+.PHONY: all target config build clean flash app-flash monitor
 
 all: build
 
-conf:
+target:
 	idf.py set-target esp32c6
+
+config:
+	idf.py menuconfig
 
 build:
 	idf.py build

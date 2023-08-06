@@ -139,6 +139,8 @@ public:
 		gpio_num_t relay_pin, bool relay_active_low);
 	~Light() = delete;
 
+	static constexpr const size_t NUM_EP_PER_LIGHT = 5;
+
 	inline size_t index() const { return index_; }
 
 	void attach(Device &device);
