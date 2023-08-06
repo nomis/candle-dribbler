@@ -377,33 +377,50 @@ uint8_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, 
 	return -1;
 }
 
+uint32_t SwitchStatusEndpoint::type_{
+	  (  0x03 << 24)  /* Group: Binary Input */
+	| (  0x00 << 16)  /* Type:   Application Domain HVAC */
+	|  0x004B         /* Index:  Lighting Status BI */
+};
+
 SwitchStatusEndpoint::SwitchStatusEndpoint(Light &light)
 		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID),
-		light_(light), state_(light_.switch_on()) {
+		light_(light), state_(light_.switch_on() ? 1 : 0) {
 }
 
 void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t light_cfg = {
-		.on_off = state_,
+	esp_zb_binary_input_cluster_cfg_t input_cfg = {
+		.out_of_service = 0,
+		.status_flags = 0,
 	};
 
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+	esp_zb_attribute_list_t *input_cluster = esp_zb_binary_input_cluster_create(&input_cfg);
+
+	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &state_));
+
+	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_APPLICATION_TYPE_ID, &type_));
+
+	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID,
+			ZigbeeString("Light " + std::to_string(light_.index())).data()));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_binary_input_cluster(&cluster_list,
+		input_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
 void SwitchStatusEndpoint::refresh() {
-	bool new_state = light_.switch_on();
+	uint8_t new_state = light_.switch_on() ? 1 : 0;
 
 	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
+		ESP_LOGI(TAG, "Light %u report switch state %u", light_.index(), new_state);
 
-		ESP_LOGI(TAG, "Light %u report switch state %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID,
+			&new_state);
 		state_ = new_state;
 	}
 }

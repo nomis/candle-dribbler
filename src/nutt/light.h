@@ -104,9 +104,10 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 60;
+	static uint32_t type_;
 
 	Light &light_;
-	bool state_;
+	uint8_t state_;
 };
 
 class EnableEndpoint: public ZigbeeEndpoint {
