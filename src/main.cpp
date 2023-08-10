@@ -23,6 +23,7 @@
 
 #include "nutt/device.h"
 #include "nutt/light.h"
+#include "nutt/ui.h"
 
 using namespace nutt;
 
@@ -43,6 +44,7 @@ extern "C" void app_main() {
 
 	ESP_ERROR_CHECK(gpio_install_isr_service(ESP_INTR_FLAG_LEVEL1));
 
+	auto &ui = *new UserInterface{GPIO_NUM_9};
 	auto &device = *new Device{};
 
 	/*                                 Switch       Active Low          Relay        Active Low
@@ -56,4 +58,7 @@ extern "C" void app_main() {
 	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  SWITCH_ACTIVE_LOW,  GPIO_NUM_23, RELAY_ACTIVE_LOW })->attach(device);
 	if (MAX_LIGHTS >= 7) (new Light{7, GPIO_NUM_7,  SWITCH_ACTIVE_LOW,  GPIO_NUM_6,  RELAY_ACTIVE_LOW })->attach(device);
 	device.start();
+
+	ui.attach(device);
+	ui.run();
 }

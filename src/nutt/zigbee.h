@@ -81,6 +81,14 @@ private:
 	ZigbeeDevice *device_{nullptr};
 };
 
+enum class ZigbeeState {
+	INIT,
+	DISCONNECTED,
+	RETRY,
+	CONNECTING,
+	CONNECTED,
+};
+
 class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
@@ -91,6 +99,7 @@ public:
 
 	void add(ZigbeeEndpoint &endpoint);
 	void start();
+	void network_join_or_leave();
 
 private:
 	static constexpr const char *TAG = "nutt.ZigbeeDevice";
@@ -107,6 +116,9 @@ private:
 
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
+
+	bool network_configured_{false};
+	ZigbeeState state_{ZigbeeState::INIT};
 };
 
 } // namespace nutt

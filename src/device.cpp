@@ -16,13 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nutt/light.h"
+#include "nutt/device.h"
 
 #include <esp_app_desc.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_ota_ops.h>
 #include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include <cstring>
 #include <functional>
@@ -30,6 +31,7 @@
 #include <thread>
 #include <vector>
 
+#include "nutt/light.h"
 #include "nutt/thread.h"
 
 namespace nutt {
@@ -89,6 +91,14 @@ void Device::do_refresh() {
 
 void Device::scheduled_refresh(uint8_t param) {
 	instance_->do_refresh();
+}
+
+void Device::network_join_or_leave() {
+	esp_zb_scheduler_alarm(&Device::scheduled_network_join_or_leave, 0, 0);
+}
+
+void Device::scheduled_network_join_or_leave(uint8_t param) {
+	instance_->zigbee_.network_join_or_leave();
 }
 
 void Device::run() {

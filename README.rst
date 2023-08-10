@@ -27,6 +27,9 @@ Work in progress, doesn't do any RF or OTA updates yet.
 Usage
 -----
 
+Press the "boot" GPIO to join/leave the Zigbee network. Joining a new network is
+not performed automatically. Leaving the network currently requires a restart.
+
 Each physical light has a switch GPIO and a relay GPIO and presents the
 following Zigbee endpoints:
 

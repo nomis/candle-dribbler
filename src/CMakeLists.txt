@@ -3,6 +3,7 @@ idf_component_register(
 		device.cpp
 		light.cpp
 		main.cpp
+		ui.cpp
 		zigbee.cpp
 
     REQUIRES

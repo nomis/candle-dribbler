@@ -11,5 +11,6 @@
 	],
 	"C_Cpp.default.mergeConfigurations": true,
 	"editor.detectIndentation": false,
-	"editor.insertSpaces": false
+	"editor.insertSpaces": false,
+	"C_Cpp.intelliSenseEngine": "Tag Parser"
 }
