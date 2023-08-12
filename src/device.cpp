@@ -19,8 +19,10 @@
 #include "nutt/device.h"
 
 #include <esp_app_desc.h>
+#include <esp_chip_info.h>
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_mac.h>
 #include <esp_ota_ops.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -37,7 +39,9 @@
 namespace nutt {
 
 Device *Device::instance_{nullptr};
-uint8_t IdentifyEndpoint::power_source_{4}; /* DC */
+uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
+uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
+uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
 
 Device::Device() : zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
@@ -201,6 +205,40 @@ void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	if (!url_.empty())
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_URL_ID, ZigbeeString{url_, 50}.data()));
+
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_GENERIC_DEVICE_CLASS_ID, &device_class_));
+
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_GENERIC_DEVICE_TYPE_ID, &device_type_));
+
+	std::string serial_number;
+	esp_chip_info_t chip{};
+	uint8_t mac[8] = { 0 };
+	std::vector<char> rev_str(6);
+	std::vector<char> mac_str(18);
+
+	esp_chip_info(&chip);
+	switch (chip.model) {
+	case CHIP_ESP32C6: serial_number = "ESP32-C6/"; break;
+	case CHIP_ESP32H2: serial_number = "ESP32-H2/"; break;
+	default: serial_number = "Unknown/"; break;
+	}
+
+	snprintf(rev_str.data(), rev_str.size(), "%02x.%02x",
+		(chip.revision >> 8) & 0xFF, chip.revision & 0xFF);
+	serial_number.append(rev_str.data());
+	serial_number += '/';
+
+	ESP_ERROR_CHECK(esp_read_mac(mac, ESP_MAC_BASE));
+	snprintf(mac_str.data(), mac_str.size(), "%02x:%02x:%02x:%02x:%02x:%02x",
+		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+	serial_number.append(mac_str.data());
+
+	ESP_LOGI(TAG, "Serial Number: %s", serial_number.c_str());
+
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_SERIAL_NUMBER_ID, ZigbeeString{serial_number, 50}.data()));
 
 	Device::configure_basic_cluster(*basic_cluster, "", esp_app_get_description());
 

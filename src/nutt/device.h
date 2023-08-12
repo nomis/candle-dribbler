@@ -75,8 +75,11 @@ public:
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
+	static constexpr const char *TAG = "nutt.Device";
 	static constexpr const ep_id_t EP_ID = 1;
 	static uint8_t power_source_;
+	static uint8_t device_class_;
+	static uint8_t device_type_;
 
 	const std::string_view manufacturer_;
 	const std::string_view model_;

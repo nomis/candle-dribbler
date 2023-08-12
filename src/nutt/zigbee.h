@@ -55,7 +55,7 @@ static inline std::string zigbee_address_string(esp_zb_ieee_addr_t address) {
 		address[7], address[6], address[5], address[4],
 		address[3], address[2], address[1], address[0]);
 
-	return {data.data(), data.size()};
+	return {data.data()};
 }
 
 class ZigbeeEndpoint {
