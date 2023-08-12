@@ -249,6 +249,21 @@ void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
+esp_err_t IdentifyEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
+	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY) {
+		if (attr_id == ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID) {
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_U16
+					&& data->size == sizeof(uint16_t)) {
+				uint16_t identify_time = *(uint16_t *)data->value;
+				ESP_LOGI(TAG, "Identify for %us", identify_time);
+				return ESP_OK;
+			}
+		}
+	}
+	return ESP_ERR_INVALID_ARG;
+}
+
 SoftwareEndpoint::SoftwareEndpoint(size_t index)
 		: ZigbeeEndpoint(BASE_EP_ID + index,
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
