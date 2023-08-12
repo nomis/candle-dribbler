@@ -20,4 +20,11 @@ config NUTT_RELAY_ACTIVE_LOW
 	help
 		Configure whether relay signalling is active low or high.
 
+config NUTT_UI_LED_BRIGHTNESS
+	int "RGB LED brightness"
+	range 0 255
+	default 32
+	help
+		Configure LED brightness.
+
 endmenu

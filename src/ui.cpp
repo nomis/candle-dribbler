@@ -23,6 +23,7 @@
 #include <driver/gpio.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <led_strip.h>
 
 #include "nutt/device.h"
 
@@ -34,6 +35,18 @@ UserInterface::UserInterface(gpio_num_t network_join_pin) {
 		ESP_LOGE(TAG, "Semaphore create failed");
 		esp_restart();
 	}
+
+	led_strip_config_t led_strip_config{};
+	led_strip_rmt_config_t rmt_config{};
+
+	led_strip_config.max_leds = 1;
+	led_strip_config.strip_gpio_num = 8;
+	led_strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
+	led_strip_config.led_model = LED_MODEL_WS2812;
+	rmt_config.resolution_hz = 10 * 1000 * 1000;
+
+	ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_strip_config, &rmt_config, &led_strip_));
+	set_led(0, 0, 0);
 
 	gpio_config_t network_join_config = {
 		.pin_bit_mask = 1ULL << network_join_pin,
@@ -58,6 +71,12 @@ void UserInterface::network_join_interrupt_handler() {
 
 	xSemaphoreGiveFromISR(semaphore_, &xHigherPriorityTaskWoken);
 	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+void UserInterface::set_led(uint8_t red, uint8_t green, uint8_t blue) {
+	ESP_ERROR_CHECK(led_strip_set_pixel(led_strip_, 0, red * LED_LEVEL / 255,
+		green * LED_LEVEL / 255, blue * LED_LEVEL / 255));
+	ESP_ERROR_CHECK(led_strip_refresh(led_strip_));
 }
 
 void UserInterface::attach(Device &device) {
@@ -86,6 +105,11 @@ void UserInterface::run() {
 
 void UserInterface::identify(uint16_t seconds) {
 	ESP_LOGI(TAG, "Identify for %us", seconds);
+	if (seconds) {
+		set_led(255, 0, 255);
+	} else {
+		set_led(0, 0, 0);
+	}
 }
 
 } // namespace nutt
