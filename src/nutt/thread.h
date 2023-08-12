@@ -19,6 +19,8 @@
 #pragma once
 
 #include <esp_pthread.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #include <thread>
 #include <utility>
@@ -36,5 +38,24 @@ void make_thread(std::thread &t, const char *name, size_t stack_size,
 
 	t = std::thread{std::forward<Function>(f), std::forward<Args>(args)...};
 }
+
+class WakeupThread {
+protected:
+	WakeupThread(const char *name);
+
+public:
+	~WakeupThread() = default;
+
+protected:
+	virtual unsigned long run_tasks() = 0;
+	void run_loop();
+	IRAM_ATTR void wake_up_isr();
+
+private:
+	static constexpr const char *TAG = "nutt.WakeupThread";
+
+	const char *name_;
+	SemaphoreHandle_t semaphore_{nullptr};
+};
 
 } // namespace nutt

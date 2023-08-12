@@ -21,7 +21,6 @@
 #include <nvs.h>
 #include <nvs_handle.hpp>
 #include <driver/gpio.h>
-#include <freertos/FreeRTOS.h>
 
 #include <atomic>
 #include <mutex>
@@ -150,7 +149,7 @@ public:
 
 	void attach(Device &device);
 
-	TickType_t run();
+	unsigned long run();
 
 	bool primary_on() const;
 	bool secondary_on() const;

@@ -21,21 +21,13 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <driver/gpio.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <led_strip.h>
 
 #include "nutt/device.h"
 
 namespace nutt {
 
-UserInterface::UserInterface(gpio_num_t network_join_pin) {
-	semaphore_ = xSemaphoreCreateBinary();
-	if (!semaphore_) {
-		ESP_LOGE(TAG, "Semaphore create failed");
-		esp_restart();
-	}
-
+UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 	led_strip_config_t led_strip_config{};
 	led_strip_rmt_config_t rmt_config{};
 
@@ -65,12 +57,8 @@ void ui_network_join_interrupt_handler(void *arg) {
 }
 
 void UserInterface::network_join_interrupt_handler() {
-	BaseType_t xHigherPriorityTaskWoken{pdFALSE};
-
 	button_press_count_irq_++;
-
-	xSemaphoreGiveFromISR(semaphore_, &xHigherPriorityTaskWoken);
-	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+	wake_up_isr();
 }
 
 void UserInterface::set_led(uint8_t red, uint8_t green, uint8_t blue) {
@@ -83,24 +71,19 @@ void UserInterface::attach(Device &device) {
 	device_ = &device;
 }
 
-void UserInterface::run() {
-	while (true) {
-		xSemaphoreTake(semaphore_, portMAX_DELAY);
+unsigned long UserInterface::run_tasks() {
+	unsigned long button_press_count_copy = button_press_count_irq_;
 
-		unsigned long button_press_count_copy = button_press_count_irq_;
+	if (button_press_count_copy != button_press_count_) {
+		button_press_count_ = button_press_count_copy;
+		ESP_LOGI(TAG, "Network join/leave button pressed");
+		Device *device = device_;
 
-		if (button_press_count_copy != button_press_count_) {
-			button_press_count_ = button_press_count_copy;
-			ESP_LOGI(TAG, "Network join/leave button pressed");
-			Device *device = device_;
-
-			if (device)
-				device->network_join_or_leave();
-		}
+		if (device)
+			device->network_join_or_leave();
 	}
 
-	ESP_LOGE(TAG, "UI loop stopped");
-	esp_restart();
+	return ULONG_MAX;
 }
 
 void UserInterface::identify(uint16_t seconds) {

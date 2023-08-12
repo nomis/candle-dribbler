@@ -23,7 +23,6 @@
 #include <esp_timer.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
-#include <freertos/FreeRTOS.h>
 #include <driver/gpio.h>
 #include <ha/esp_zigbee_ha_standard.h>
 
@@ -117,8 +116,8 @@ void Light::attach(Device &device) {
 	ESP_ERROR_CHECK(gpio_intr_enable(switch_pin_));
 }
 
-TickType_t Light::run() {
-	TickType_t wait = portMAX_DELAY;
+unsigned long Light::run() {
+	unsigned long wait_ms = ULONG_MAX;
 	unsigned long switch_change_count_copy = switch_change_count_irq_;
 	uint64_t now_us = esp_timer_get_time();
 	int level = gpio_get_level(switch_pin_);
@@ -139,11 +138,11 @@ TickType_t Light::run() {
 			switch_active_ = switch_state_ == switch_active();
 			primary_switch(switch_active_, true);
 		} else {
-			wait = std::max(static_cast<uint64_t>(0U), (DEBOUNCE_US - (now_us - switch_change_us_))) / static_cast<uint64_t>(1000U) / portTICK_PERIOD_MS;
+			wait_ms = (DEBOUNCE_US - (now_us - switch_change_us_)) / 1000U;
 		}
 	}
 
-	return wait;
+	return wait_ms;
 }
 
 void light_interrupt_handler(void *arg) {

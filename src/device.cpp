@@ -24,8 +24,6 @@
 #include <esp_log.h>
 #include <esp_mac.h>
 #include <esp_ota_ops.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 #include <cstring>
 #include <functional>
@@ -44,15 +42,10 @@ uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
 uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
 uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
 
-Device::Device(UserInterface &ui) : ui_(ui), zigbee_(*new ZigbeeDevice{}) {
+Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
+		zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
 	instance_ = this;
-
-	semaphore_ = xSemaphoreCreateBinary();
-	if (!semaphore_) {
-		ESP_LOGE(TAG, "Semaphore create failed");
-		esp_restart();
-	}
 
 	zigbee_.add(*new IdentifyEndpoint{*this, "uuid.uk", "candle-dribbler",
 		"https://github.com/nomis/candle-dribbler"});
@@ -72,19 +65,12 @@ void Device::start() {
 	zigbee_.start();
 
 	std::thread t;
-	make_thread(t, "device_main", 4096, 19, &Device::run, this);
+	make_thread(t, "device_main", 4096, 19, &Device::run_loop, this);
 	t.detach();
 }
 
 void Device::request_refresh() {
 	esp_zb_scheduler_alarm(&Device::scheduled_refresh, 0, 0);
-}
-
-void Device::wake_up_isr() {
-	BaseType_t xHigherPriorityTaskWoken{pdFALSE};
-
-	xSemaphoreGiveFromISR(semaphore_, &xHigherPriorityTaskWoken);
-	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void Device::do_refresh() {
@@ -106,18 +92,13 @@ void Device::scheduled_network_join_or_leave(uint8_t param) {
 	instance_->zigbee_.network_join_or_leave();
 }
 
-void Device::run() {
-	while (true) {
-		TickType_t wait = portMAX_DELAY;
+unsigned long Device::run_tasks() {
+	unsigned long wait_ms = ULONG_MAX;
 
-		for (Light &light : lights_)
-			wait = std::min(wait, std::max(static_cast<TickType_t>(1U), light.run()));
+	for (Light &light : lights_)
+		wait_ms = std::min(wait_ms, light.run());
 
-		xSemaphoreTake(semaphore_, wait);
-	}
-
-	ESP_LOGE(TAG, "Device main loop stopped");
-	esp_restart();
+	return wait_ms;
 }
 
 IdentifyEndpoint::IdentifyEndpoint(Device &device,

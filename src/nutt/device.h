@@ -20,12 +20,11 @@
 
 #include <esp_app_desc.h>
 #include <esp_attr.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 #include <functional>
 #include <vector>
 
+#include "thread.h"
 #include "zigbee.h"
 
 namespace nutt {
@@ -33,7 +32,7 @@ namespace nutt {
 class Light;
 class UserInterface;
 
-class Device {
+class Device: public WakeupThread {
 public:
 	Device(UserInterface &ui);
 	~Device() = delete;
@@ -44,7 +43,7 @@ public:
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
 	void request_refresh();
-	IRAM_ATTR void wake_up_isr();
+	using WakeupThread::wake_up_isr;
 
 	inline UserInterface& ui() { return ui_; };
 	void network_join_or_leave();
@@ -59,13 +58,12 @@ private:
 	static void scheduled_network_join_or_leave(uint8_t param);
 
 	void do_refresh();
-	void run();
+	unsigned long run_tasks();
 
 	static Device *instance_;
 
 	UserInterface &ui_;
 	ZigbeeDevice &zigbee_;
-	SemaphoreHandle_t semaphore_{nullptr};
 	std::vector<std::reference_wrapper<Light>> lights_;
 };
 

@@ -60,5 +60,5 @@ extern "C" void app_main() {
 	device.start();
 
 	ui.attach(device);
-	ui.run();
+	ui.run_loop();
 }

@@ -19,12 +19,12 @@
 #pragma once
 
 #include <driver/gpio.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <led_strip.h>
 #include <sdkconfig.h>
 
 #include <atomic>
+
+#include "thread.h"
 
 namespace nutt {
 
@@ -32,7 +32,7 @@ class Device;
 
 IRAM_ATTR void ui_network_join_interrupt_handler(void *arg);
 
-class UserInterface {
+class UserInterface: private WakeupThread {
 	friend void ui_network_join_interrupt_handler(void *arg);
 
 public:
@@ -40,7 +40,8 @@ public:
 	~UserInterface() = delete;
 
 	void attach(Device &device);
-	void run();
+	unsigned long run_tasks();
+	using WakeupThread::run_loop;
 
 	void identify(uint16_t seconds);
 
@@ -51,7 +52,6 @@ private:
 	IRAM_ATTR void network_join_interrupt_handler();
 	void set_led(uint8_t red, uint8_t green, uint8_t blue);
 
-	SemaphoreHandle_t semaphore_{nullptr};
 	led_strip_handle_t led_strip_{nullptr};
 	unsigned long button_press_count_{0};
 	std::atomic<unsigned long> button_press_count_irq_{0};
