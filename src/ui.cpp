@@ -84,4 +84,8 @@ void UserInterface::run() {
 	esp_restart();
 }
 
+void UserInterface::identify(uint16_t seconds) {
+	ESP_LOGI(TAG, "Identify for %us", seconds);
+}
+
 } // namespace nutt

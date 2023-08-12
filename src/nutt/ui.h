@@ -40,6 +40,8 @@ public:
 	void attach(Device &device);
 	void run();
 
+	void identify(uint16_t seconds);
+
 private:
 	static constexpr const char *TAG = "nutt.UI";
 

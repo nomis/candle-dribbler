@@ -35,6 +35,7 @@
 
 #include "nutt/light.h"
 #include "nutt/thread.h"
+#include "nutt/ui.h"
 
 namespace nutt {
 
@@ -43,7 +44,7 @@ uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
 uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
 uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
 
-Device::Device() : zigbee_(*new ZigbeeDevice{}) {
+Device::Device(UserInterface &ui) : ui_(ui), zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -53,7 +54,7 @@ Device::Device() : zigbee_(*new ZigbeeDevice{}) {
 		esp_restart();
 	}
 
-	zigbee_.add(*new IdentifyEndpoint{"uuid.uk", "candle-dribbler",
+	zigbee_.add(*new IdentifyEndpoint{*this, "uuid.uk", "candle-dribbler",
 		"https://github.com/nomis/candle-dribbler"});
 
 	for (size_t i = 0; i < esp_ota_get_app_partition_count(); i++)
@@ -119,11 +120,11 @@ void Device::run() {
 	esp_restart();
 }
 
-IdentifyEndpoint::IdentifyEndpoint(const std::string_view manufacturer,
-		const std::string_view model, const std::string_view url)
-		: ZigbeeEndpoint(EP_ID,
+IdentifyEndpoint::IdentifyEndpoint(Device &device,
+		const std::string_view manufacturer, const std::string_view model,
+		const std::string_view url) : ZigbeeEndpoint(EP_ID,
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		manufacturer_(manufacturer), model_(model), url_(url) {
+		device_(device), manufacturer_(manufacturer), model_(model), url_(url) {
 }
 
 void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
@@ -256,7 +257,7 @@ esp_err_t IdentifyEndpoint::set_attr_value(uint16_t cluster_id,
 			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_U16
 					&& data->size == sizeof(uint16_t)) {
 				uint16_t identify_time = *(uint16_t *)data->value;
-				ESP_LOGI(TAG, "Identify for %us", identify_time);
+				device_.ui().identify(identify_time);
 				return ESP_OK;
 			}
 		}

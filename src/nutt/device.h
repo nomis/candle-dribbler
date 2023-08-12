@@ -31,10 +31,11 @@
 namespace nutt {
 
 class Light;
+class UserInterface;
 
 class Device {
 public:
-	Device();
+	Device(UserInterface &ui);
 	~Device() = delete;
 
 	/* Assumes 2 OTA partitions are configured */
@@ -45,6 +46,7 @@ public:
 	void request_refresh();
 	IRAM_ATTR void wake_up_isr();
 
+	inline UserInterface& ui() { return ui_; };
 	void network_join_or_leave();
 
 	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
@@ -61,6 +63,7 @@ private:
 
 	static Device *instance_;
 
+	UserInterface &ui_;
 	ZigbeeDevice &zigbee_;
 	SemaphoreHandle_t semaphore_{nullptr};
 	std::vector<std::reference_wrapper<Light>> lights_;
@@ -68,7 +71,7 @@ private:
 
 class IdentifyEndpoint: public ZigbeeEndpoint {
 public:
-	IdentifyEndpoint(const std::string_view manufacturer,
+	IdentifyEndpoint(Device &device, const std::string_view manufacturer,
 		const std::string_view model, const std::string_view url);
 	~IdentifyEndpoint() = delete;
 
@@ -83,6 +86,7 @@ private:
 	static uint8_t device_class_;
 	static uint8_t device_type_;
 
+	Device &device_;
 	const std::string_view manufacturer_;
 	const std::string_view model_;
 	const std::string_view url_;
