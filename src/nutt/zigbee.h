@@ -71,10 +71,12 @@ public:
 
 	void attach(ZigbeeDevice &device);
 
-	virtual uint8_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value);
+	virtual esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 private:
+	static constexpr const char *TAG = "nutt.ZigbeeEndpoint";
+
 	const ep_id_t id_;
 	const uint16_t profile_id_;
 	const uint16_t device_id_;
@@ -105,11 +107,11 @@ private:
 	static constexpr const char *TAG = "nutt.ZigbeeDevice";
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
-	static void attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
+	static esp_err_t attr_value_cb(esp_zb_zcl_set_attr_value_message_t message);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
-	uint8_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value);
+	esp_err_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 	static ZigbeeDevice *instance_;

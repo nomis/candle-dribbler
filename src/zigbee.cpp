@@ -101,21 +101,38 @@ void ZigbeeDevice::run() {
 	esp_restart();
 }
 
-void ZigbeeDevice::attr_value_cb(uint8_t status, uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value) {
-	instance_->set_attr_value(endpoint_id, cluster_id, attr_id, value);
-}
+esp_err_t ZigbeeDevice::attr_value_cb(esp_zb_zcl_set_attr_value_message_t message) {
+	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+		esp_err_t ret = instance_->set_attr_value(message.info.dst_endpoint,
+			message.info.cluster, message.attribute, &message.data);
 
-uint8_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, void *value) {
-	auto it = endpoints_.find(endpoint_id);
-
-	if (it != endpoints_.end()) {
-		return it->second.set_attr_value(cluster_id, attr_id, value);
+		if (ret != ESP_OK) {
+			ESP_LOGE(TAG, "Rejected attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
+				message.info.dst_endpoint, message.info.cluster, message.attribute,
+				message.data.type, message.data.size);
+		}
+		return ret;
 	} else {
-		return -1;
+		ESP_LOGE(TAG, "Received invalid attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
+			message.info.dst_endpoint, message.info.cluster, message.attribute,
+			message.data.type, message.data.size);
+		return ESP_ERR_INVALID_ARG;
 	}
 }
 
-void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
+esp_err_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
+	auto it = endpoints_.find(endpoint_id);
+
+	if (it != endpoints_.end()) {
+		return it->second.set_attr_value(cluster_id, attr_id, data);
+	} else {
+		ESP_LOGW(TAG, "Setting invalid attribute");
+		return ESP_ERR_INVALID_ARG;
+	}
+}
+
+void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
+		uint8_t cluster_role, uint16_t attr_id, void *value) {
 	esp_zb_zcl_set_attribute_val(endpoint_id, cluster_id, cluster_role, attr_id, value, false);
 }
 
@@ -127,9 +144,10 @@ void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
 	device_ = &device;
 }
 
-uint8_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
-	ESP_LOGW("ZigbeeEndpoint", "set_attr_value not supported");
-	return -1;
+esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data) {
+	ESP_LOGE(TAG, "set_attr_value not supported");
+	return ESP_ERR_INVALID_ARG;
 }
 
 void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {

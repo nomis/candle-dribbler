@@ -269,15 +269,19 @@ void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list
 		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
-uint8_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+esp_err_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.primary_switch(state_, false);
-			return 0;
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+					&& data->size == sizeof(uint8_t)) {
+				state_ = *(uint8_t *)data->value != 0;
+				light_.primary_switch(state_, false);
+				return ESP_OK;
+			}
 		}
 	}
-	return -1;
+	return ESP_ERR_INVALID_ARG;
 }
 
 void PrimaryEndpoint::refresh() {
@@ -327,15 +331,19 @@ void SecondaryEndpoint::refresh() {
 	}
 }
 
-uint8_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+esp_err_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.secondary_switch(state_, false);
-			return 0;
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+					&& data->size == sizeof(uint8_t)) {
+				state_ = *(uint8_t *)data->value != 0;
+				light_.secondary_switch(state_, false);
+				return ESP_OK;
+			}
 		}
 	}
-	return -1;
+	return ESP_ERR_INVALID_ARG;
 }
 
 TertiaryEndpoint::TertiaryEndpoint(Light &light)
@@ -369,15 +377,19 @@ void TertiaryEndpoint::refresh() {
 	}
 }
 
-uint8_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+esp_err_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.tertiary_switch(state_);
-			return 0;
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+					&& data->size == sizeof(uint8_t)) {
+				state_ = *(uint8_t *)data->value != 0;
+				light_.tertiary_switch(state_);
+				return ESP_OK;
+			}
 		}
 	}
-	return -1;
+	return ESP_ERR_INVALID_ARG;
 }
 
 uint32_t SwitchStatusEndpoint::type_{
@@ -428,15 +440,19 @@ void SwitchStatusEndpoint::refresh() {
 	}
 }
 
-uint8_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+esp_err_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.request_refresh();
-			return 0;
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+					&& data->size == sizeof(uint8_t)) {
+				state_ = *(uint8_t *)data->value != 0;
+				light_.request_refresh();
+				return ESP_OK;
+			}
 		}
 	}
-	return -1;
+	return ESP_ERR_INVALID_ARG;
 }
 
 EnableEndpoint::EnableEndpoint(Light &light)
@@ -454,15 +470,19 @@ void EnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list)
 		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
-uint8_t EnableEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, void *value) {
+esp_err_t EnableEndpoint::set_attr_value(uint16_t cluster_id,
+		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			state_ = *(uint8_t *)value != 0;
-			light_.enable(state_);
-			return 0;
+			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+					&& data->size == sizeof(uint8_t)) {
+				state_ = *(uint8_t *)data->value != 0;
+				light_.enable(state_);
+				return ESP_OK;
+			}
 		}
 	}
-	return -1;
+	return ESP_ERR_INVALID_ARG;
 }
 
 } // namespace light
