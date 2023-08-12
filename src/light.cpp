@@ -122,7 +122,7 @@ unsigned long Light::run() {
 	uint64_t now_us = esp_timer_get_time();
 	int level = gpio_get_level(switch_pin_);
 
-	if (switch_change_count_copy != switch_change_count_) {
+	if (switch_change_count_ != switch_change_count_copy) {
 		switch_change_count_ = switch_change_count_copy;
 		switch_change_us_ = now_us;
 	}
@@ -152,7 +152,7 @@ void light_interrupt_handler(void *arg) {
 void Light::interrupt_handler() {
 	Device *device = device_;
 
-	switch_change_count_++;
+	switch_change_count_irq_++;
 
 	if (device)
 		device->wake_up_isr();
