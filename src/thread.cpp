@@ -18,9 +18,13 @@
 
 #include "nutt/thread.h"
 
+#include <esp_err.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+
+#include <algorithm>
 
 namespace nutt {
 
@@ -30,23 +34,29 @@ WakeupThread::WakeupThread(const char *name) : name_(name) {
 		ESP_LOGE(TAG, "Semaphore create for %s failed", name_);
 		esp_restart();
 	}
+
+	esp_timer_create_args_t timer_config{};
+	timer_config.callback = wake_up_timer;
+	timer_config.arg = this;
+	timer_config.dispatch_method = ESP_TIMER_TASK;
+	timer_config.name = name_;
+
+	ESP_ERROR_CHECK(esp_timer_create(&timer_config, &timer_));
 }
 
 void WakeupThread::run_loop() {
 	while (true) {
-		TickType_t wait_ticks = portMAX_DELAY;
-		unsigned long wait_ms = run_tasks();
+		unsigned long wait_ms = std::max(1UL, run_tasks());
 
-		static_assert(static_cast<uintmax_t>(ULONG_MAX)
-			<= static_cast<uintmax_t>(portMAX_DELAY)
-				* static_cast<uintmax_t>(portTICK_PERIOD_MS));
-
-		if (wait_ms < ULONG_MAX) {
-			wait_ticks = std::max(static_cast<TickType_t>(1U),
-				wait_ms / portTICK_PERIOD_MS);
+		if (wait_ms == ULONG_MAX) {
+			esp_timer_stop(timer_);
+		} else {
+			if (esp_timer_restart(timer_, wait_ms * 1000U) != ESP_OK) {
+				ESP_ERROR_CHECK(esp_timer_start_once(timer_, wait_ms * 1000U));
+			}
 		}
 
-		xSemaphoreTake(semaphore_, wait_ticks);
+		xSemaphoreTake(semaphore_, portMAX_DELAY);
 	}
 
 	ESP_LOGE(TAG, "%s loop stopped", name_);
@@ -58,6 +68,14 @@ void WakeupThread::wake_up_isr() {
 
 	xSemaphoreGiveFromISR(semaphore_, &xHigherPriorityTaskWoken);
 	portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+}
+
+void WakeupThread::wake_up_timer(void *arg) {
+	WakeupThread *wt = static_cast<WakeupThread*>(arg);
+
+	if (wt) {
+		xSemaphoreGive(wt->semaphore_);
+	}
 }
 
 } // namespace nutt

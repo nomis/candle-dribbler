@@ -19,6 +19,7 @@
 #pragma once
 
 #include <esp_pthread.h>
+#include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
@@ -54,8 +55,11 @@ protected:
 private:
 	static constexpr const char *TAG = "nutt.WakeupThread";
 
+	static void wake_up_timer(void *arg);
+
 	const char *name_;
 	SemaphoreHandle_t semaphore_{nullptr};
+	esp_timer_handle_t timer_{nullptr};
 };
 
 } // namespace nutt

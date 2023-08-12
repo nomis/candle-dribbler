@@ -25,6 +25,7 @@
 #include <esp_mac.h>
 #include <esp_ota_ops.h>
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <string>
