@@ -381,9 +381,9 @@ uint8_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id, 
 }
 
 uint32_t SwitchStatusEndpoint::type_{
-	  (  0x03 << 24)  /* Group: Binary Input */
-	| (  0x00 << 16)  /* Type:   Application Domain HVAC */
-	|  0x004B         /* Index:  Lighting Status BI */
+	  (  0x03 << 24)  /* Group: Binary Input            */
+	| (  0x00 << 16)  /* Type:  Application Domain HVAC */
+	|  0x004B         /* Index: Lighting Status BI      */
 };
 
 SwitchStatusEndpoint::SwitchStatusEndpoint(Light &light)
