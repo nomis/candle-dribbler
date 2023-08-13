@@ -87,7 +87,8 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 
 void ZigbeeDevice::start() {
 	ESP_ERROR_CHECK(esp_zb_device_register(endpoint_list_));
-	esp_zb_device_add_set_attr_value_cb(attr_value_cb);
+	esp_zb_device_add_set_attr_value_cb(set_attr_value_cb);
+	esp_zb_device_add_ota_upgrade_status_cb(ota_upgrade_status_cb);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
 	ESP_ERROR_CHECK(esp_zb_start(false));
 
@@ -102,7 +103,7 @@ void ZigbeeDevice::run() {
 	esp_restart();
 }
 
-esp_err_t ZigbeeDevice::attr_value_cb(esp_zb_zcl_set_attr_value_message_t message) {
+esp_err_t ZigbeeDevice::set_attr_value_cb(esp_zb_zcl_set_attr_value_message_t message) {
 	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
 		esp_err_t ret = instance_->set_attr_value(message.info.dst_endpoint,
 			message.info.cluster, message.attribute, &message.data);
@@ -135,6 +136,57 @@ esp_err_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
 void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
 		uint8_t cluster_role, uint16_t attr_id, void *value) {
 	esp_zb_zcl_set_attribute_val(endpoint_id, cluster_id, cluster_role, attr_id, value, false);
+}
+
+esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message) {
+	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+		switch (message.update_status) {
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
+			ESP_LOGI(TAG, "OTA start");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_APPLY:
+			ESP_LOGI(TAG, "OTA apply");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
+			ESP_LOGI(TAG, "OTA receive data");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_FINISH:
+			ESP_LOGI(TAG, "OTA finished");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ABORT:
+			ESP_LOGI(TAG, "OTA aborted");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_CHECK:
+			ESP_LOGI(TAG, "OTA data complete");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_OK:
+			ESP_LOGI(TAG, "OTA data ok");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ERROR:
+			ESP_LOGI(TAG, "OTA data error");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_IMAGE_STATUS_NORMAL:
+			ESP_LOGI(TAG, "OTA image accepted");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_BUSY:
+			ESP_LOGI(TAG, "OTA busy");
+			break;
+
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_SERVER_NOT_FOUND:
+			ESP_LOGI(TAG, "OTA server not found");
+			break;
+		}
+	}
+	return ESP_OK;
 }
 
 ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)

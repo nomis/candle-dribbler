@@ -233,6 +233,22 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
 		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+	esp_zb_ota_cluster_cfg_t ota_config{};
+	ota_config.ota_upgrade_manufacturer = MANUFACTURER_ID;
+	ota_config.ota_upgrade_image_type = IMAGE_TYPE_ID;
+
+	esp_zb_attribute_list_t *ota_cluster = esp_zb_ota_cluster_create(&ota_config);
+
+	esp_zb_ota_upgrade_client_parameter_t ota_client_parameters{};
+	ota_client_parameters.max_data_size = UINT8_MAX;
+
+	esp_zb_ota_cluster_add_attr(ota_cluster,
+		ESP_ZB_ZCL_ATTR_OTA_UPGRADE_CLIENT_PARAMETER_ID,
+		esp_zb_ota_client_parameter(&ota_client_parameters));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_ota_cluster(&cluster_list,
+		ota_cluster, ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE));
 }
 
 esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,

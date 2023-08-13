@@ -107,7 +107,8 @@ private:
 	static constexpr const char *TAG = "nutt.ZigbeeDevice";
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
-	static esp_err_t attr_value_cb(esp_zb_zcl_set_attr_value_message_t message);
+	static esp_err_t set_attr_value_cb(esp_zb_zcl_set_attr_value_message_t message);
+	static esp_err_t ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);

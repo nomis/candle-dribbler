@@ -82,6 +82,8 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.Device";
 	static constexpr const ep_id_t EP_ID = 1;
+	static constexpr const uint16_t MANUFACTURER_ID = 39777;
+	static constexpr const uint16_t IMAGE_TYPE_ID = 1;
 	static uint8_t power_source_;
 	static uint8_t device_class_;
 	static uint8_t device_type_;
