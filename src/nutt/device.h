@@ -69,11 +69,11 @@ private:
 
 namespace device {
 
-class IdentifyEndpoint: public ZigbeeEndpoint {
+class MainEndpoint: public ZigbeeEndpoint {
 public:
-	IdentifyEndpoint(Device &device, const std::string_view manufacturer,
+	MainEndpoint(Device &device, const std::string_view manufacturer,
 		const std::string_view model, const std::string_view url);
-	~IdentifyEndpoint() = delete;
+	~MainEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,

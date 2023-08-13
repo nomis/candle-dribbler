@@ -45,7 +45,7 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 	assert(!instance_);
 	instance_ = this;
 
-	zigbee_.add(*new device::IdentifyEndpoint{*this, "uuid.uk", "candle-dribbler",
+	zigbee_.add(*new device::MainEndpoint{*this, "uuid.uk", "candle-dribbler",
 		"https://github.com/nomis/candle-dribbler"});
 
 	for (size_t i = 0; i < esp_ota_get_app_partition_count(); i++)
@@ -162,18 +162,18 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 
 namespace device {
 
-uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
-uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
-uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
+uint8_t MainEndpoint::power_source_{0x04}; /* DC */
+uint8_t MainEndpoint::device_class_{0x00}; /* Lighting */
+uint8_t MainEndpoint::device_type_{0xf0}; /* Generic actuator */
 
-IdentifyEndpoint::IdentifyEndpoint(Device &device,
+MainEndpoint::MainEndpoint(Device &device,
 		const std::string_view manufacturer, const std::string_view model,
 		const std::string_view url) : ZigbeeEndpoint(EP_ID,
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
 		device_(device), manufacturer_(manufacturer), model_(model), url_(url) {
 }
 
-void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
 
 	/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
@@ -235,7 +235,7 @@ void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
-esp_err_t IdentifyEndpoint::set_attr_value(uint16_t cluster_id,
+esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,
 		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY) {
 		if (attr_id == ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID) {
