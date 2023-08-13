@@ -48,7 +48,7 @@ namespace colour {
 
 static constexpr const RGBColour OFF = {0, 0, 0};
 static constexpr const RGBColour RED = {255, 0, 0};
-static constexpr const RGBColour ORANGE = {255, 128, 0};
+static constexpr const RGBColour ORANGE = {255, 96, 0};
 static constexpr const RGBColour YELLOW = {255, 255, 0};
 static constexpr const RGBColour GREEN = {0, 255, 0};
 static constexpr const RGBColour CYAN = {0, 255, 255};
