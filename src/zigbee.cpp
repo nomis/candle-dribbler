@@ -20,6 +20,7 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
 
@@ -143,42 +144,52 @@ esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t me
 		switch (message.update_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_APPLY:
 			ESP_LOGI(TAG, "OTA apply");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
 			ESP_LOGI(TAG, "OTA receive data");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_FINISH:
 			ESP_LOGI(TAG, "OTA finished");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ABORT:
 			ESP_LOGI(TAG, "OTA aborted");
+			instance_->ui_.ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_CHECK:
 			ESP_LOGI(TAG, "OTA data complete");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_OK:
 			ESP_LOGI(TAG, "OTA data ok");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ERROR:
 			ESP_LOGI(TAG, "OTA data error");
+			instance_->ui_.ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_IMAGE_STATUS_NORMAL:
 			ESP_LOGI(TAG, "OTA image accepted");
+			instance_->ui_.ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_BUSY:
 			ESP_LOGI(TAG, "OTA busy");
+			instance_->ui_.ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_SERVER_NOT_FOUND:
@@ -266,6 +277,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					esp_zb_get_short_address());
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
+			esp_ota_mark_app_valid_cancel_rollback();
 		} else {
 			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;

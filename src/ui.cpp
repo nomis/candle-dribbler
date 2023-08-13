@@ -37,12 +37,14 @@ using namespace ui;
 using namespace ui::colour;
 
 const std::unordered_map<Event,LEDSequence> UserInterface::led_sequences_{
-	{ Event::IDLE,                                 {    0, { { OFF, 3000 }, { CYAN, 3000 }  } } },
+	{ Event::IDLE,                                 {    0, { { OFF, 0 }                     } } },
 	{ Event::NETWORK_CONNECT,                      { 8000, { { GREEN, 5000 }, { OFF, 0 }    } } },
 	{ Event::NETWORK_CONNECTED,                    {    0, { { GREEN, 250 }, { OFF, 2750 }  } } },
+	{ Event::OTA_UPDATE_OK,                        {  500, { { CYAN, 0 }                    } } },
 	{ Event::LIGHT_SWITCHED_LOCAL,                 { 2000, { { ORANGE, 0 }                  } } },
 	{ Event::LIGHT_SWITCHED_REMOTE,                { 2000, { { BLUE, 0 }                    } } },
 	{ Event::IDENTIFY,                             { 3000, { { MAGENTA, 0 }                 } } },
+	{ Event::OTA_UPDATE_ERROR,                     { 3000, { { RED, 200 }, { OFF, 200 }     } } },
 	{ Event::NETWORK_UNCONFIGURED_DISCONNECTED,    {    0, { { WHITE, 0 }                   } } },
 	{ Event::NETWORK_UNCONFIGURED_CONNECTING,      {    0, { { WHITE, 250 }, { OFF, 250 }   } } },
 	{ Event::NETWORK_CONFIGURED_DISCONNECTED,      {    0, { { YELLOW, 0 }                  } } },
@@ -288,6 +290,13 @@ void UserInterface::identify(uint16_t seconds) {
 	if (seconds) {
 		start_event(Event::IDENTIFY);
 	}
+	wake_up();
+}
+
+void UserInterface::ota_update(bool ok) {
+	std::lock_guard lock{mutex_};
+
+	restart_event(ok ? Event::OTA_UPDATE_OK : Event::OTA_UPDATE_ERROR);
 	wake_up();
 }
 

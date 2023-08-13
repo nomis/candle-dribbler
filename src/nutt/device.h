@@ -82,8 +82,17 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.Device";
 	static constexpr const ep_id_t EP_ID = 1;
-	static constexpr const uint16_t MANUFACTURER_ID = 39777;
-	static constexpr const uint16_t IMAGE_TYPE_ID = 1;
+#ifdef CONFIG_NUTT_SUPPORT_OTA
+	static constexpr const bool OTA_SUPPORTED = true;
+	static constexpr const uint16_t OTA_MANUFACTURER_ID = CONFIG_NUTT_OTA_MANUFACTURER_ID;
+	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = CONFIG_NUTT_OTA_IMAGE_TYPE_ID;
+	static constexpr const uint32_t OTA_FILE_VERSION = CONFIG_NUTT_OTA_FILE_VERSION;
+#else
+	static constexpr const bool OTA_SUPPORTED = false;
+	static constexpr const uint16_t OTA_MANUFACTURER_ID = 0;
+	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = 0;
+	static constexpr const uint32_t OTA_FILE_VERSION = 0;
+#endif
 	static uint8_t power_source_;
 	static uint8_t device_class_;
 	static uint8_t device_type_;

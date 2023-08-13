@@ -27,4 +27,40 @@ config NUTT_UI_LED_BRIGHTNESS
 	help
 		Configure LED brightness.
 
+menuconfig NUTT_SUPPORT_OTA
+	bool "Support OTA"
+	default n
+	help
+		Support OTA (over the air) updates. These are slow and take a long time
+		to complete. They're also defined in a restrictive way that expects you
+		to have a Zigbee manufacturer ID (limited to 65535 values!) and wait for
+		the device to pull updates from another Zigbee device/coordinator on the
+		network. Updates will be marked valid automatically when a connection is
+		established to a network.
+
+if NUTT_SUPPORT_OTA
+	config NUTT_OTA_MANUFACTURER_ID
+		hex "Manufacturer ID"
+		range 0x0000 0xfffe
+		default 0
+		help
+			Configure Zigbee manufacturer ID for OTA updates.
+
+	config NUTT_OTA_IMAGE_TYPE_ID
+		hex "Image Type ID"
+		range 0x0000 0xfffe
+		default 0
+		help
+			Configure image type ID (to uniquely identify this device model)
+			for OTA updates.
+
+	config NUTT_OTA_FILE_VERSION
+		hex "File Version"
+		range 0x00000000 0xffffffff
+		default 0
+		help
+			Configure the current file version (to identify which builds are
+			newer).
+endif
+
 endmenu

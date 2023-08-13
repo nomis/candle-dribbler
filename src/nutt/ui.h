@@ -81,9 +81,11 @@ enum class Event {
 	NETWORK_CONFIGURED_DISCONNECTED,
 	NETWORK_UNCONFIGURED_CONNECTING,
 	NETWORK_UNCONFIGURED_DISCONNECTED,
+	OTA_UPDATE_ERROR,
 	IDENTIFY,
 	LIGHT_SWITCHED_REMOTE,
 	LIGHT_SWITCHED_LOCAL,
+	OTA_UPDATE_OK,
 	NETWORK_CONNECT,
 	NETWORK_CONNECTED,
 	IDLE,
@@ -113,6 +115,7 @@ public:
 	void network_error();
 	void identify(uint16_t seconds);
 	void light_switched(bool local);
+	void ota_update(bool ok);
 
 private:
 	static constexpr const char *TAG = "nutt.UI";
