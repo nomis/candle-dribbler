@@ -196,6 +196,7 @@ private:
 	bool enable_{true};
 	bool on_{false};
 
+	bool switch_first_run_{true};
 	int switch_change_state_;
 	uint64_t switch_change_us_{0};
 	int switch_state_;

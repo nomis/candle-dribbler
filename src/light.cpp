@@ -135,11 +135,25 @@ unsigned long Light::run() {
 		switch_change_us_ = now_us;
 	}
 
+	if (switch_first_run_) {
+		if (switch_change_us_ == 0) {
+			switch_change_us_ = now_us;
+		}
+
+		switch_state_ = !switch_change_state_;
+	}
+
 	if (switch_state_ != switch_change_state_) {
 		if (now_us - switch_change_us_ >= DEBOUNCE_US) {
 			switch_state_ = switch_change_state_;
 			switch_active_ = switch_state_ == switch_active();
-			primary_switch(switch_active_, true);
+
+			if (switch_first_run_) {
+				request_refresh();
+				switch_first_run_ = false;
+			} else {
+				primary_switch(switch_active_, true);
+			}
 		} else {
 			wait_ms = (DEBOUNCE_US - (now_us - switch_change_us_)) / 1000UL;
 		}
