@@ -112,5 +112,22 @@ you have more than one of the same type!
 
 The endpoints should be in some kind of logical order, which means you'll have
 all of the **Primary Light**\ s first, then the **Secondary Light**\ s followed
-by the **Tertiary Light**\ s. Each of these groupings will be in the order of
+by the **Tertiary Light**\ s. Each of these groupings should be in the order of
 the physical light GPIOs.
+
+If it's still not clear, you can identify each endpoint with the following
+steps:
+
+#. Turn all of the switch endpoints on and all of the light endpoints off.
+#. Turn each physical light switch on one by one. The light and binary input
+   endpoints that turn on will identify the corresponding **Primary Light** and
+   **Switch Status** endpoints.
+#. Turn all the other light endpoints on.
+#. Turn each **Primary Light** off one by one. That will identify the
+   corresponding **Secondary Light** endpoint because it will turn off too.
+#. Turn each of the remaining light endpoints off one by one. That will identify
+   the corresponding **Tertiary Light** endpoints because the light will go off.
+#. Turn all the switch endpoints off and all of the **Primary Light** endpoints
+   on.
+#. Turn the switch endpoints on one by one. That will identify the corresponding
+   **Enable Switch** endpoint because the light will come on.
