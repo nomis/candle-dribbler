@@ -67,6 +67,8 @@ private:
 	std::vector<std::reference_wrapper<Light>> lights_;
 };
 
+namespace device {
+
 class IdentifyEndpoint: public ZigbeeEndpoint {
 public:
 	IdentifyEndpoint(Device &device, const std::string_view manufacturer,
@@ -102,5 +104,7 @@ private:
 	static constexpr const ep_id_t BASE_EP_ID = 200;
 	size_t index_;
 };
+
+} // namespace device
 
 } // namespace nutt

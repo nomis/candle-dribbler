@@ -39,20 +39,17 @@
 namespace nutt {
 
 Device *Device::instance_{nullptr};
-uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
-uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
-uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 		zigbee_(*new ZigbeeDevice{}) {
 	assert(!instance_);
 	instance_ = this;
 
-	zigbee_.add(*new IdentifyEndpoint{*this, "uuid.uk", "candle-dribbler",
+	zigbee_.add(*new device::IdentifyEndpoint{*this, "uuid.uk", "candle-dribbler",
 		"https://github.com/nomis/candle-dribbler"});
 
 	for (size_t i = 0; i < esp_ota_get_app_partition_count(); i++)
-		zigbee_.add(*new SoftwareEndpoint{i});
+		zigbee_.add(*new device::SoftwareEndpoint{i});
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -100,13 +97,6 @@ unsigned long Device::run_tasks() {
 		wait_ms = std::min(wait_ms, light.run());
 
 	return wait_ms;
-}
-
-IdentifyEndpoint::IdentifyEndpoint(Device &device,
-		const std::string_view manufacturer, const std::string_view model,
-		const std::string_view url) : ZigbeeEndpoint(EP_ID,
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		device_(device), manufacturer_(manufacturer), model_(model), url_(url) {
 }
 
 void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
@@ -168,6 +158,19 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
 			ZigbeeString{version, 70}.data()));
 	}
+}
+
+namespace device {
+
+uint8_t IdentifyEndpoint::power_source_{0x04}; /* DC */
+uint8_t IdentifyEndpoint::device_class_{0x00}; /* Lighting */
+uint8_t IdentifyEndpoint::device_type_{0xf0}; /* Generic actuator */
+
+IdentifyEndpoint::IdentifyEndpoint(Device &device,
+		const std::string_view manufacturer, const std::string_view model,
+		const std::string_view url) : ZigbeeEndpoint(EP_ID,
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
+		device_(device), manufacturer_(manufacturer), model_(model), url_(url) {
 }
 
 void IdentifyEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
@@ -301,5 +304,7 @@ void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
 		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
+
+} // namespace device
 
 } // namespace nutt
