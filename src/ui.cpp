@@ -38,7 +38,7 @@ UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 	rmt_config.resolution_hz = 10 * 1000 * 1000;
 
 	ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_strip_config, &rmt_config, &led_strip_));
-	set_led(0, 0, 0);
+	set_led(OFF);
 
 	gpio_config_t network_join_config = {
 		.pin_bit_mask = 1ULL << network_join_pin,
@@ -61,9 +61,11 @@ void UserInterface::network_join_interrupt_handler() {
 	wake_up_isr();
 }
 
-void UserInterface::set_led(uint8_t red, uint8_t green, uint8_t blue) {
-	ESP_ERROR_CHECK(led_strip_set_pixel(led_strip_, 0, red * LED_LEVEL / 255,
-		green * LED_LEVEL / 255, blue * LED_LEVEL / 255));
+void UserInterface::set_led(ui::RGBColour colour) {
+	ESP_ERROR_CHECK(led_strip_set_pixel(led_strip_, 0,
+		colour.red * LED_LEVEL / 255,
+		colour.green * LED_LEVEL / 255,
+		colour.blue * LED_LEVEL / 255));
 	ESP_ERROR_CHECK(led_strip_refresh(led_strip_));
 }
 
@@ -89,9 +91,9 @@ unsigned long UserInterface::run_tasks() {
 void UserInterface::identify(uint16_t seconds) {
 	ESP_LOGI(TAG, "Identify for %us", seconds);
 	if (seconds) {
-		set_led(255, 0, 255);
+		set_led(MAGENTA);
 	} else {
-		set_led(0, 0, 0);
+		set_led(OFF);
 	}
 }
 

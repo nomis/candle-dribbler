@@ -32,6 +32,16 @@ class Device;
 
 IRAM_ATTR void ui_network_join_interrupt_handler(void *arg);
 
+namespace ui {
+
+struct RGBColour {
+	uint8_t red;
+	uint8_t green;
+	uint8_t blue;
+} __attribute__((packed));
+
+} // namespace ui
+
 class UserInterface: private WakeupThread {
 	friend void ui_network_join_interrupt_handler(void *arg);
 
@@ -48,9 +58,18 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.UI";
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
+	static constexpr const ui::RGBColour OFF = {0, 0, 0};
+	static constexpr const ui::RGBColour RED = {255, 0, 0};
+	static constexpr const ui::RGBColour ORANGE = {255, 128, 0};
+	static constexpr const ui::RGBColour YELLOW = {255, 255, 0};
+	static constexpr const ui::RGBColour GREEN = {0, 255, 0};
+	static constexpr const ui::RGBColour CYAN = {0, 255, 255};
+	static constexpr const ui::RGBColour BLUE = {0, 0, 255};
+	static constexpr const ui::RGBColour MAGENTA = {255, 0, 255};
+	static constexpr const ui::RGBColour WHITE = {255, 255, 255};
 
 	IRAM_ATTR void network_join_interrupt_handler();
-	void set_led(uint8_t red, uint8_t green, uint8_t blue);
+	void set_led(ui::RGBColour colour);
 
 	led_strip_handle_t led_strip_{nullptr};
 	unsigned long button_press_count_{0};
