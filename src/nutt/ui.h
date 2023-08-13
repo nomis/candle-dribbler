@@ -40,6 +40,20 @@ struct RGBColour {
 	uint8_t blue;
 } __attribute__((packed));
 
+namespace colour {
+
+static constexpr const RGBColour OFF = {0, 0, 0};
+static constexpr const RGBColour RED = {255, 0, 0};
+static constexpr const RGBColour ORANGE = {255, 128, 0};
+static constexpr const RGBColour YELLOW = {255, 255, 0};
+static constexpr const RGBColour GREEN = {0, 255, 0};
+static constexpr const RGBColour CYAN = {0, 255, 255};
+static constexpr const RGBColour BLUE = {0, 0, 255};
+static constexpr const RGBColour MAGENTA = {255, 0, 255};
+static constexpr const RGBColour WHITE = {255, 255, 255};
+
+} // namespace colour
+
 } // namespace ui
 
 class UserInterface: private WakeupThread {
@@ -58,15 +72,6 @@ public:
 private:
 	static constexpr const char *TAG = "nutt.UI";
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
-	static constexpr const ui::RGBColour OFF = {0, 0, 0};
-	static constexpr const ui::RGBColour RED = {255, 0, 0};
-	static constexpr const ui::RGBColour ORANGE = {255, 128, 0};
-	static constexpr const ui::RGBColour YELLOW = {255, 255, 0};
-	static constexpr const ui::RGBColour GREEN = {0, 255, 0};
-	static constexpr const ui::RGBColour CYAN = {0, 255, 255};
-	static constexpr const ui::RGBColour BLUE = {0, 0, 255};
-	static constexpr const ui::RGBColour MAGENTA = {255, 0, 255};
-	static constexpr const ui::RGBColour WHITE = {255, 255, 255};
 
 	IRAM_ATTR void network_join_interrupt_handler();
 	void set_led(ui::RGBColour colour);

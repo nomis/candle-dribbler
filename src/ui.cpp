@@ -27,6 +27,8 @@
 
 namespace nutt {
 
+namespace colour = ui::colour;
+
 UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 	led_strip_config_t led_strip_config{};
 	led_strip_rmt_config_t rmt_config{};
@@ -38,7 +40,7 @@ UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 	rmt_config.resolution_hz = 10 * 1000 * 1000;
 
 	ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_strip_config, &rmt_config, &led_strip_));
-	set_led(OFF);
+	set_led(colour::OFF);
 
 	gpio_config_t network_join_config = {
 		.pin_bit_mask = 1ULL << network_join_pin,
@@ -91,9 +93,9 @@ unsigned long UserInterface::run_tasks() {
 void UserInterface::identify(uint16_t seconds) {
 	ESP_LOGI(TAG, "Identify for %us", seconds);
 	if (seconds) {
-		set_led(MAGENTA);
+		set_led(colour::MAGENTA);
 	} else {
-		set_led(OFF);
+		set_led(colour::OFF);
 	}
 }
 
