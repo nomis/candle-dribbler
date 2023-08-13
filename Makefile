@@ -21,4 +21,4 @@ app-flash: build
 	idf.py app-flash
 
 monitor:
-	idf.py monitor --timestamps --no-reset
+	idf.py monitor --timestamps --timestamp-format "%Y-%m-%d %H:%M:%S.%f" --no-reset
