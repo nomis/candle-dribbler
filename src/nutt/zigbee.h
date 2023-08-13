@@ -29,6 +29,7 @@ namespace nutt {
 
 using ep_id_t = uint8_t;
 
+class UserInterface;
 class ZigbeeDevice;
 class ZigbeeEndpoint;
 
@@ -95,7 +96,7 @@ class ZigbeeDevice {
 	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
-	ZigbeeDevice();
+	ZigbeeDevice(UserInterface &ui);
 	~ZigbeeDevice() = delete;
 
 	void add(ZigbeeEndpoint &endpoint);
@@ -113,12 +114,17 @@ private:
 	esp_err_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
+	void update_state(ZigbeeState state);
+	void update_state(ZigbeeState state, bool configured);
+
 	static ZigbeeDevice *instance_;
 
+	UserInterface &ui_;
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
 
 	bool network_configured_{false};
+	bool network_failed_{false};
 	ZigbeeState state_{ZigbeeState::INIT};
 };
 

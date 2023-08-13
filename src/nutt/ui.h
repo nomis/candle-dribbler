@@ -23,6 +23,10 @@
 #include <sdkconfig.h>
 
 #include <atomic>
+#include <bitset>
+#include <mutex>
+#include <unordered_map>
+#include <vector>
 
 #include "thread.h"
 
@@ -54,6 +58,44 @@ static constexpr const RGBColour WHITE = {255, 255, 255};
 
 } // namespace colour
 
+struct LEDState {
+	RGBColour colour;
+	unsigned long duration_ms;
+
+	uint64_t remaining_us{duration_ms * 1000UL};
+};
+
+struct LEDSequence {
+	unsigned long duration_ms;
+	std::vector<LEDState> states;
+
+	uint64_t remaining_us{duration_ms * 1000UL};
+};
+
+/* Ordered by priority (high to low) */
+enum class Event {
+	NETWORK_UNCONFIGURED_FAILED,
+	NETWORK_CONFIGURED_FAILED,
+	NETWORK_ERROR,
+	NETWORK_CONFIGURED_CONNECTING,
+	NETWORK_CONFIGURED_DISCONNECTED,
+	NETWORK_UNCONFIGURED_CONNECTING,
+	NETWORK_UNCONFIGURED_DISCONNECTED,
+	IDENTIFY,
+	LIGHT_SWITCHED_REMOTE,
+	LIGHT_SWITCHED_LOCAL,
+	NETWORK_CONNECT,
+	NETWORK_CONNECTED,
+	IDLE,
+};
+
+enum class NetworkState {
+	DISCONNECTED,
+	CONNECTING,
+	CONNECTED,
+	FAILED,
+};
+
 } // namespace ui
 
 class UserInterface: private WakeupThread {
@@ -67,19 +109,36 @@ public:
 	unsigned long run_tasks();
 	using WakeupThread::run_loop;
 
+	void network_state(bool configured, ui::NetworkState state);
+	void network_error();
 	void identify(uint16_t seconds);
+	void light_switched(bool local);
 
 private:
 	static constexpr const char *TAG = "nutt.UI";
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
+	static const std::unordered_map<ui::Event,ui::LEDSequence> led_sequences_;
 
 	IRAM_ATTR void network_join_interrupt_handler();
+	void start_event(ui::Event event);
+	void restart_event(ui::Event event);
+	bool event_active(ui::Event event);
+	void stop_event(ui::Event event);
+	void stop_events(std::initializer_list<ui::Event> events);
 	void set_led(ui::RGBColour colour);
+	unsigned long update_led();
 
 	led_strip_handle_t led_strip_{nullptr};
 	unsigned long button_press_count_{0};
 	std::atomic<unsigned long> button_press_count_irq_{0};
 	Device *device_{nullptr};
+
+	uint64_t render_time_us_{0};
+	ui::Event render_event_{ui::Event::IDLE};
+
+	std::mutex mutex_;
+	std::bitset<static_cast<unsigned long>(ui::Event::IDLE) + 1> active_events_;
+	std::unordered_map<ui::Event,ui::LEDSequence> active_sequence_;
 };
 
 } // namespace nutt

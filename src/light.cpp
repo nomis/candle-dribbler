@@ -30,6 +30,9 @@
 #include <string>
 #include <thread>
 
+#include "nutt/device.h"
+#include "nutt/ui.h"
+
 #ifndef ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID
 # define ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID 0x0103
 #endif
@@ -138,7 +141,7 @@ unsigned long Light::run() {
 			switch_active_ = switch_state_ == switch_active();
 			primary_switch(switch_active_, true);
 		} else {
-			wait_ms = (DEBOUNCE_US - (now_us - switch_change_us_)) / 1000U;
+			wait_ms = (DEBOUNCE_US - (now_us - switch_change_us_)) / 1000UL;
 		}
 	}
 
@@ -150,12 +153,8 @@ void light_interrupt_handler(void *arg) {
 }
 
 void Light::interrupt_handler() {
-	Device *device = device_;
-
 	switch_change_count_irq_++;
-
-	if (device)
-		device->wake_up_isr();
+	device_->wake_up_isr();
 }
 
 bool Light::primary_on() const {
@@ -198,6 +197,7 @@ void Light::primary_switch(bool state, bool local) {
 		secondary_switch_locked(state, local);
 	}
 	update_state();
+	device_->ui().light_switched(local);
 }
 
 void Light::secondary_switch(bool state, bool local) {
@@ -205,6 +205,7 @@ void Light::secondary_switch(bool state, bool local) {
 
 	secondary_switch_locked(state, local);
 	update_state();
+	device_->ui().light_switched(local);
 }
 
 void Light::secondary_switch_locked(bool state, bool local) {
@@ -220,6 +221,7 @@ void Light::tertiary_switch(bool state) {
 		index_, tertiary_on_, state);
 	tertiary_on_ = state;
 	update_state();
+	device_->ui().light_switched(false);
 }
 
 void Light::enable(bool state) {

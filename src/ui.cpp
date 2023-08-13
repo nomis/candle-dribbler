@@ -20,14 +20,46 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_timer.h>
 #include <driver/gpio.h>
 #include <led_strip.h>
+#include <string.h>
+
+#include <bitset>
+#include <thread>
+#include <unordered_map>
 
 #include "nutt/device.h"
 
 namespace nutt {
 
+using namespace ui;
+using namespace ui::colour;
+
+const std::unordered_map<Event,LEDSequence> UserInterface::led_sequences_{
+	{ Event::IDLE,                                 {    0, { { OFF, 3000 }, { CYAN, 3000 }  } } },
+	{ Event::NETWORK_CONNECT,                      { 8000, { { GREEN, 5000 }, { OFF, 0 }    } } },
+	{ Event::NETWORK_CONNECTED,                    {    0, { { GREEN, 250 }, { OFF, 2750 }  } } },
+	{ Event::LIGHT_SWITCHED_LOCAL,                 { 2000, { { ORANGE, 0 }                  } } },
+	{ Event::LIGHT_SWITCHED_REMOTE,                { 2000, { { BLUE, 0 }                    } } },
+	{ Event::IDENTIFY,                             { 3000, { { MAGENTA, 0 }                 } } },
+	{ Event::NETWORK_UNCONFIGURED_DISCONNECTED,    {    0, { { WHITE, 0 }                   } } },
+	{ Event::NETWORK_UNCONFIGURED_CONNECTING,      {    0, { { WHITE, 250 }, { OFF, 250 }   } } },
+	{ Event::NETWORK_CONFIGURED_DISCONNECTED,      {    0, { { YELLOW, 0 }                  } } },
+	{ Event::NETWORK_CONFIGURED_CONNECTING,        {    0, { { YELLOW, 250 }, { OFF, 250 }  } } },
+	{ Event::NETWORK_ERROR,                        { 1000, { { RED, 250 }, { OFF, 250 }     } } },
+	{ Event::NETWORK_CONFIGURED_FAILED,            {    0, { { RED, 0 }                     } } },
+	{ Event::NETWORK_UNCONFIGURED_FAILED,          {    0, { { RED, 0 }, { OFF, 500 }       } } },
+};
+
+} // namespace nutt
+
+namespace nutt {
+
 namespace colour = ui::colour;
+using ui::Event;
+using ui::NetworkState;
+using ui::RGBColour;
 
 UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 	led_strip_config_t led_strip_config{};
@@ -63,7 +95,7 @@ void UserInterface::network_join_interrupt_handler() {
 	wake_up_isr();
 }
 
-void UserInterface::set_led(ui::RGBColour colour) {
+void UserInterface::set_led(RGBColour colour) {
 	ESP_ERROR_CHECK(led_strip_set_pixel(led_strip_, 0,
 		colour.red * LED_LEVEL / 255,
 		colour.green * LED_LEVEL / 255,
@@ -87,16 +119,184 @@ unsigned long UserInterface::run_tasks() {
 			device->network_join_or_leave();
 	}
 
-	return ULONG_MAX;
+	return update_led();
+}
+
+void UserInterface::start_event(Event event) {
+	unsigned long value = static_cast<unsigned long>(event);
+
+	active_events_.set(value);
+	active_sequence_.insert_or_assign(event, led_sequences_.at(event));
+}
+
+void UserInterface::restart_event(Event event) {
+	stop_event(event);
+	start_event(event);
+}
+
+bool UserInterface::event_active(Event event) {
+	unsigned long value = static_cast<unsigned long>(event);
+
+	return active_events_.test(value);
+}
+
+void UserInterface::stop_event(Event event) {
+	if (event_active(event)) {
+		unsigned long value = static_cast<unsigned long>(event);
+
+		active_events_.reset(value);
+		active_sequence_.erase(event);
+
+		if (render_time_us_ && render_event_ == event) {
+			render_time_us_ = 0;
+		}
+	}
+}
+
+inline void UserInterface::stop_events(std::initializer_list<Event> events) {
+	for (Event event : events)
+		stop_event(event);
+}
+
+unsigned long UserInterface::update_led() {
+	uint64_t now_us_ = esp_timer_get_time();
+
+	if (render_time_us_ && event_active(render_event_)) {
+		uint64_t elapsed_us = now_us_ - render_time_us_;
+		auto &sequence = active_sequence_[render_event_];
+
+		if (sequence.states[0].duration_ms) {
+			if (elapsed_us >= sequence.states[0].remaining_us) {
+				sequence.states[0].remaining_us = sequence.states[0].duration_ms * 1000UL;
+				auto state_copy = sequence.states[0];
+				sequence.states.erase(sequence.states.begin());
+				sequence.states.emplace_back(std::move(state_copy));
+			} else {
+				sequence.states[0].remaining_us -= elapsed_us;
+			}
+		}
+
+		if (sequence.duration_ms) {
+			if (elapsed_us >= sequence.remaining_us) {
+				stop_event(render_event_);
+			} else {
+				sequence.remaining_us -= elapsed_us;
+			}
+		}
+	}
+
+	unsigned long wait_ms;
+	RGBColour colour;
+	Event event;
+
+	std::unique_lock lock{mutex_};
+	unsigned long value = ffsl(active_events_.to_ulong());
+
+	if (value) {
+		event = static_cast<Event>(value - 1);
+	} else {
+		event = Event::IDLE;
+		start_event(event);
+	}
+
+	auto &sequence = active_sequence_[event];
+
+	if (sequence.states[0].duration_ms) {
+		wait_ms = std::min(static_cast<unsigned long>(sequence.states[0].remaining_us / 1000UL), ULONG_MAX - 1);
+	} else {
+		wait_ms = ULONG_MAX;
+	}
+
+	if (sequence.duration_ms) {
+		wait_ms = std::min(wait_ms, std::min(static_cast<unsigned long>(sequence.remaining_us / 1000UL), ULONG_MAX - 1));
+	} else {
+		wait_ms = std::min(wait_ms, ULONG_MAX);
+	}
+
+	colour = sequence.states[0].colour;
+
+	render_time_us_ = esp_timer_get_time();
+	render_event_ = event;
+	lock.unlock();
+
+	set_led(colour);
+
+	return wait_ms;
+}
+
+void UserInterface::network_state(bool configured, NetworkState state) {
+	std::lock_guard lock{mutex_};
+	auto event = Event::IDLE;
+
+	switch (state) {
+	case NetworkState::DISCONNECTED:
+		event = configured ? Event::NETWORK_CONFIGURED_DISCONNECTED
+			: Event::NETWORK_UNCONFIGURED_DISCONNECTED;
+		break;
+
+	case NetworkState::CONNECTING:
+		event = configured ? Event::NETWORK_CONFIGURED_CONNECTING
+			: Event::NETWORK_UNCONFIGURED_CONNECTING;
+		break;
+
+	case NetworkState::CONNECTED:
+		event = Event::NETWORK_CONNECTED;
+		break;
+
+	case NetworkState::FAILED:
+		event = configured ? Event::NETWORK_CONFIGURED_FAILED
+			: Event::NETWORK_UNCONFIGURED_FAILED;
+		stop_event(Event::NETWORK_ERROR);
+		break;
+	}
+
+	if (state == NetworkState::CONNECTED) {
+		if (!event_active(event)) {
+			restart_event(Event::NETWORK_CONNECT);
+		}
+	} else {
+		stop_event(Event::NETWORK_CONNECT);
+	}
+
+	stop_events({
+		Event::NETWORK_CONFIGURED_CONNECTING,
+		Event::NETWORK_CONFIGURED_DISCONNECTED,
+		Event::NETWORK_CONFIGURED_FAILED,
+		Event::NETWORK_CONNECTED,
+		Event::NETWORK_UNCONFIGURED_CONNECTING,
+		Event::NETWORK_UNCONFIGURED_DISCONNECTED,
+		Event::NETWORK_UNCONFIGURED_FAILED,
+	});
+
+	restart_event(event);
+	wake_up();
+}
+
+void UserInterface::network_error() {
+	std::lock_guard lock{mutex_};
+
+	restart_event(Event::NETWORK_ERROR);
+	wake_up();
 }
 
 void UserInterface::identify(uint16_t seconds) {
 	ESP_LOGI(TAG, "Identify for %us", seconds);
+
+	std::lock_guard lock{mutex_};
+
+	stop_event(Event::IDENTIFY);
 	if (seconds) {
-		set_led(colour::MAGENTA);
-	} else {
-		set_led(colour::OFF);
+		start_event(Event::IDENTIFY);
 	}
+	wake_up();
+}
+
+void UserInterface::light_switched(bool local) {
+	std::lock_guard lock{mutex_};
+
+	restart_event(local ? Event::LIGHT_SWITCHED_LOCAL
+		: Event::LIGHT_SWITCHED_REMOTE);
+	wake_up();
 }
 
 } // namespace nutt

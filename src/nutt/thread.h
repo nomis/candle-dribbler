@@ -50,6 +50,7 @@ public:
 protected:
 	virtual unsigned long run_tasks() = 0;
 	void run_loop();
+	void wake_up();
 	IRAM_ATTR void wake_up_isr();
 
 private:

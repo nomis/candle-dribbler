@@ -63,6 +63,10 @@ void WakeupThread::run_loop() {
 	esp_restart();
 }
 
+void WakeupThread::wake_up() {
+	xSemaphoreGive(semaphore_);
+}
+
 void WakeupThread::wake_up_isr() {
 	BaseType_t xHigherPriorityTaskWoken{pdFALSE};
 

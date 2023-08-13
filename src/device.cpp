@@ -41,7 +41,7 @@ namespace nutt {
 Device *Device::instance_{nullptr};
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
-		zigbee_(*new ZigbeeDevice{}) {
+		zigbee_(*new ZigbeeDevice{ui}) {
 	assert(!instance_);
 	instance_ = this;
 

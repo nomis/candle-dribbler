@@ -27,6 +27,7 @@
 #include <string_view>
 #include <thread>
 
+#include "nutt/ui.h"
 #include "nutt/thread.h"
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
@@ -48,7 +49,7 @@ ZigbeeString::ZigbeeString(const std::string_view text, size_t max_length) {
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
 }
 
-ZigbeeDevice::ZigbeeDevice() {
+ZigbeeDevice::ZigbeeDevice(UserInterface &ui) : ui_(ui) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -167,15 +168,15 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		if (status == ESP_OK) {
 			if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
 				ESP_LOGI(TAG, "Zigbee stack initialized");
-				state_ = ZigbeeState::DISCONNECTED;
-
 				uint16_t address = esp_zb_get_short_address();
-				network_configured_ = address != 0xFFFF;
+
+				update_state(ZigbeeState::DISCONNECTED, address != 0xFFFF);
 				ESP_LOGI(TAG, "Device address: 0x%04x (network %sconfigured)", address, network_configured_ ? "" : "not ");
 			}
 		} else if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
 			ESP_LOGE(TAG, "Failed to initialize Zigbee stack (status: %d)", status);
-			state_ = ZigbeeState::INIT;
+			network_failed_ = true;
+			update_state(ZigbeeState::INIT);
 		} else {
 			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 		}
@@ -186,19 +187,19 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 				if (status == ESP_OK) {
 					ESP_LOGI(TAG, "Connecting (%s)", esp_zb_zdo_signal_to_string(type));
-					state_ = ZigbeeState::CONNECTING;
+					update_state(ZigbeeState::CONNECTING);
 					ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(
 						type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP
 						? ESP_ZB_BDB_MODE_INITIALIZATION
 						: ESP_ZB_BDB_MODE_NETWORK_STEERING));
 				} else {
 					ESP_LOGI(TAG, "Retry");
-					state_ = ZigbeeState::RETRY;
+					update_state(ZigbeeState::RETRY);
 					esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
 				}
 			} else {
 				ESP_LOGI(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
-				state_ = ZigbeeState::DISCONNECTED;
+				update_state(ZigbeeState::DISCONNECTED);
 			}
 		}
 		break;
@@ -211,12 +212,13 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					zigbee_address_string(extended_pan_id).c_str(),
 					esp_zb_get_pan_id(), esp_zb_get_current_channel(),
 					esp_zb_get_short_address());
-			network_configured_ = true;
-			state_ = ZigbeeState::CONNECTED;
+			network_failed_ = false;
+			update_state(ZigbeeState::CONNECTED, true);
 		} else {
 			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
+			network_failed_ = true;
 			ESP_LOGI(TAG, "Retry");
-			state_ = ZigbeeState::RETRY;
+			update_state(ZigbeeState::RETRY);
 			esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
 			esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
 		}
@@ -226,11 +228,11 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		if (status == ESP_OK) {
 			esp_zb_zdo_signal_leave_params_t *params = static_cast<esp_zb_zdo_signal_leave_params_t*>(data);
 
-			network_configured_ = false;
+			network_failed_ = false;
 
 			if (params && params->leave_type == ESP_ZB_NWK_LEAVE_TYPE_REJOIN) {
 				ESP_LOGE(TAG, "Device rejoin");
-				state_ = ZigbeeState::RETRY;
+				update_state(ZigbeeState::RETRY, false);
 				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
 				esp_zb_scheduler_alarm(start_top_level_commissioning, 0, 1000);
 			} else {
@@ -243,7 +245,8 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 				}
 
 				ESP_LOGI(TAG, "Waiting for pairing button press");
-				state_ = ZigbeeState::DISCONNECTED;
+				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
+				update_state(ZigbeeState::DISCONNECTED, false);
 			}
 		}
 		break;
@@ -258,6 +261,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			ESP_LOGW(TAG, "Device unavailable (%s/0x%04x)",
 				zigbee_address_string(params->long_addr).c_str(),
 				params->short_addr);
+			ui_.network_error();
 		}
 		break;
 
@@ -271,6 +275,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 			ESP_LOGW(TAG, "NLME status indication: %02x 0x%04x %02x",
 				params->status, params->network_addr, params->unknown_command_id);
+			ui_.network_error();
 		}
 		break;
 
@@ -283,7 +288,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
 	if (instance_->state_ == ZigbeeState::RETRY) {
 		ESP_LOGI(TAG, "Connecting (retry)");
-		instance_->state_ = ZigbeeState::CONNECTING;
+		instance_->update_state(ZigbeeState::CONNECTING);
 		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(mode_mask));
 	}
 }
@@ -292,16 +297,51 @@ void ZigbeeDevice::network_join_or_leave() {
 	if (state_ != ZigbeeState::INIT) {
 		esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
 
+		network_failed_ = false;
+
 		if (network_configured_ || state_ != ZigbeeState::DISCONNECTED) {
 			ESP_LOGI(TAG, "Leave network");
 			esp_zb_factory_reset();
-			state_ = ZigbeeState::DISCONNECTED;
+			instance_->update_state(ZigbeeState::DISCONNECTED);
 		} else {
 			ESP_LOGI(TAG, "Connecting (join network)");
-			state_ = ZigbeeState::CONNECTING;
+			instance_->update_state(ZigbeeState::CONNECTING);
 			ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
 		}
 	}
+}
+
+void ZigbeeDevice::update_state(ZigbeeState state) {
+	state_ = state;
+
+	auto ui_state = ui::NetworkState::FAILED;
+
+	switch (state_) {
+	case ZigbeeState::INIT:
+	case ZigbeeState::DISCONNECTED:
+		ui_state = ui::NetworkState::DISCONNECTED;
+		break;
+
+	case ZigbeeState::RETRY:
+	case ZigbeeState::CONNECTING:
+		ui_state = ui::NetworkState::CONNECTING;
+		break;
+
+	case ZigbeeState::CONNECTED:
+		ui_state = ui::NetworkState::CONNECTED;
+		break;
+	}
+
+	if (network_failed_) {
+		ui_state = ui::NetworkState::FAILED;
+	}
+
+	ui_.network_state(network_configured_, ui_state);
+}
+
+void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
+	network_configured_ = configured;
+	update_state(state);
 }
 
 } // namespace nutt
