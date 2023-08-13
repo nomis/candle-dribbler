@@ -1,4 +1,4 @@
-.PHONY: all target config build clean flash app-flash monitor
+.PHONY: all target config build clean flash erase-ota app-flash monitor
 
 all: build
 
@@ -16,6 +16,9 @@ clean:
 
 flash: build
 	idf.py flash
+
+erase-ota:
+	idf.py erase-otadata
 
 app-flash: build
 	idf.py app-flash
