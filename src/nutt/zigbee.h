@@ -127,6 +127,8 @@ private:
 	bool network_configured_{false};
 	bool network_failed_{false};
 	ZigbeeState state_{ZigbeeState::INIT};
+
+	bool ota_validated_{false};
 };
 
 } // namespace nutt
