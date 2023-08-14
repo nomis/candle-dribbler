@@ -32,7 +32,7 @@ namespace nutt {
 class Light;
 class UserInterface;
 
-class Device: public WakeupThread {
+class Device: public WakeupThread, public ZigbeeListener {
 public:
 	Device(UserInterface &ui);
 	~Device() = delete;
@@ -51,6 +51,10 @@ public:
 	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 		std::string label, const esp_app_desc_t *desc);
 
+	void zigbee_network_state(bool configured, ZigbeeState state, bool failed) override;
+	void zigbee_network_error() override;
+	void zigbee_ota_update(bool ok) override;
+
 private:
 	static constexpr const char *TAG = "nutt.Device";
 
@@ -58,7 +62,7 @@ private:
 	static void scheduled_network_join_or_leave(uint8_t param);
 
 	void do_refresh();
-	unsigned long run_tasks();
+	unsigned long run_tasks() override;
 
 	static Device *instance_;
 

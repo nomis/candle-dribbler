@@ -32,6 +32,7 @@ using ep_id_t = uint8_t;
 class UserInterface;
 class ZigbeeDevice;
 class ZigbeeEndpoint;
+class ZigbeeListener;
 
 class ZigbeeString {
 public:
@@ -96,7 +97,7 @@ class ZigbeeDevice {
 	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
-	ZigbeeDevice(UserInterface &ui);
+	ZigbeeDevice(ZigbeeListener &listener);
 	~ZigbeeDevice() = delete;
 
 	void add(ZigbeeEndpoint &endpoint);
@@ -120,7 +121,7 @@ private:
 
 	static ZigbeeDevice *instance_;
 
-	UserInterface &ui_;
+	ZigbeeListener &listener_;
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
 	std::unordered_map<ep_id_t,ZigbeeEndpoint&> endpoints_;
 
@@ -129,6 +130,17 @@ private:
 	ZigbeeState state_{ZigbeeState::INIT};
 
 	bool ota_validated_{false};
+};
+
+class ZigbeeListener {
+protected:
+	ZigbeeListener() = default;
+	~ZigbeeListener() = default;
+
+public:
+	virtual void zigbee_network_state(bool configured, ZigbeeState state, bool failed) = 0;
+	virtual void zigbee_network_error() = 0;
+	virtual void zigbee_ota_update(bool ok) = 0;
 };
 
 } // namespace nutt

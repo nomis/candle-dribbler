@@ -43,8 +43,6 @@ void make_thread(std::thread &t, const char *name, size_t stack_size,
 class WakeupThread {
 protected:
 	WakeupThread(const char *name);
-
-public:
 	~WakeupThread() = default;
 
 protected:

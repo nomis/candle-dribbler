@@ -28,7 +28,6 @@
 #include <string_view>
 #include <thread>
 
-#include "nutt/ui.h"
 #include "nutt/thread.h"
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
@@ -50,7 +49,7 @@ ZigbeeString::ZigbeeString(const std::string_view text, size_t max_length) {
 	value_.insert(value_.end(), text.cbegin(), text.cbegin() + length);
 }
 
-ZigbeeDevice::ZigbeeDevice(UserInterface &ui) : ui_(ui) {
+ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -144,52 +143,52 @@ esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t me
 		switch (message.update_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_APPLY:
 			ESP_LOGI(TAG, "OTA apply");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
 			ESP_LOGI(TAG, "OTA receive data");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_FINISH:
 			ESP_LOGI(TAG, "OTA finished");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ABORT:
 			ESP_LOGI(TAG, "OTA aborted");
-			instance_->ui_.ota_update(false);
+			instance_->listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_CHECK:
 			ESP_LOGI(TAG, "OTA data complete");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_OK:
 			ESP_LOGI(TAG, "OTA data ok");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ERROR:
 			ESP_LOGI(TAG, "OTA data error");
-			instance_->ui_.ota_update(false);
+			instance_->listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_IMAGE_STATUS_NORMAL:
 			ESP_LOGI(TAG, "OTA image accepted");
-			instance_->ui_.ota_update(true);
+			instance_->listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_BUSY:
 			ESP_LOGI(TAG, "OTA busy");
-			instance_->ui_.ota_update(false);
+			instance_->listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_SERVER_NOT_FOUND:
@@ -329,7 +328,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			ESP_LOGW(TAG, "Device unavailable (%s/0x%04x)",
 				zigbee_address_string(params->long_addr).c_str(),
 				params->short_addr);
-			ui_.network_error();
+			listener_.zigbee_network_error();
 		}
 		break;
 
@@ -343,7 +342,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 			ESP_LOGW(TAG, "NLME status indication: %02x 0x%04x %02x",
 				params->status, params->network_addr, params->unknown_command_id);
-			ui_.network_error();
+			listener_.zigbee_network_error();
 		}
 		break;
 
@@ -381,30 +380,7 @@ void ZigbeeDevice::network_join_or_leave() {
 
 void ZigbeeDevice::update_state(ZigbeeState state) {
 	state_ = state;
-
-	auto ui_state = ui::NetworkState::FAILED;
-
-	switch (state_) {
-	case ZigbeeState::INIT:
-	case ZigbeeState::DISCONNECTED:
-		ui_state = ui::NetworkState::DISCONNECTED;
-		break;
-
-	case ZigbeeState::RETRY:
-	case ZigbeeState::CONNECTING:
-		ui_state = ui::NetworkState::CONNECTING;
-		break;
-
-	case ZigbeeState::CONNECTED:
-		ui_state = ui::NetworkState::CONNECTED;
-		break;
-	}
-
-	if (network_failed_) {
-		ui_state = ui::NetworkState::FAILED;
-	}
-
-	ui_.network_state(network_configured_, ui_state);
+	listener_.zigbee_network_state(network_configured_, state_, network_failed_);
 }
 
 void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {

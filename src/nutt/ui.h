@@ -108,7 +108,6 @@ public:
 	~UserInterface() = delete;
 
 	void attach(Device &device);
-	unsigned long run_tasks();
 	using WakeupThread::run_loop;
 
 	void network_state(bool configured, ui::NetworkState state);
@@ -122,6 +121,7 @@ private:
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
 	static const std::unordered_map<ui::Event,ui::LEDSequence> led_sequences_;
 
+	unsigned long run_tasks() override;
 	IRAM_ATTR void network_join_interrupt_handler();
 	void start_event(ui::Event event);
 	void restart_event(ui::Event event);

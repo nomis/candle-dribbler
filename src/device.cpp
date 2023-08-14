@@ -35,13 +35,14 @@
 #include "nutt/light.h"
 #include "nutt/thread.h"
 #include "nutt/ui.h"
+#include "nutt/zigbee.h"
 
 namespace nutt {
 
 Device *Device::instance_{nullptr};
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
-		zigbee_(*new ZigbeeDevice{ui}) {
+		zigbee_(*new ZigbeeDevice{*this}) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -158,6 +159,41 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
 			ZigbeeString{version, 70}.data()));
 	}
+}
+
+void Device::zigbee_network_state(bool configured, ZigbeeState state,
+		bool failed) {
+	auto ui_state = ui::NetworkState::FAILED;
+
+	switch (state) {
+	case ZigbeeState::INIT:
+	case ZigbeeState::DISCONNECTED:
+		ui_state = ui::NetworkState::DISCONNECTED;
+		break;
+
+	case ZigbeeState::RETRY:
+	case ZigbeeState::CONNECTING:
+		ui_state = ui::NetworkState::CONNECTING;
+		break;
+
+	case ZigbeeState::CONNECTED:
+		ui_state = ui::NetworkState::CONNECTED;
+		break;
+	}
+
+	if (failed) {
+		ui_state = ui::NetworkState::FAILED;
+	}
+
+	ui_.network_state(configured, ui_state);
+}
+
+void Device::zigbee_network_error() {
+	ui_.network_error();
+}
+
+void Device::zigbee_ota_update(bool ok) {
+	ui_.ota_update(ok);
 }
 
 namespace device {
