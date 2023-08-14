@@ -143,6 +143,7 @@ public:
 		gpio_num_t relay_pin, bool relay_active_low);
 	~Light() = delete;
 
+	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const size_t NUM_EP_PER_LIGHT = 5;
 
 	inline size_t index() const { return index_; }
@@ -167,7 +168,6 @@ public:
 	void refresh();
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const uint64_t DEBOUNCE_US = 20 * 1000;
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 

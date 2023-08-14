@@ -71,7 +71,7 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 
 	switch_change_state_ = switch_state_ = gpio_get_level(switch_pin_);
 	switch_active_ = switch_state_ == switch_active();
-	ESP_LOGI(TAG, "Light %u switch is %d", index_, switch_active_);
+	ESP_LOGD(TAG, "Light %u switch is %d", index_, switch_active_);
 
 	ESP_ERROR_CHECK(gpio_isr_handler_add(switch_pin_, light_interrupt_handler, this));
 }
@@ -203,7 +203,7 @@ bool Light::on() const {
 void Light::primary_switch(bool state, bool local) {
 	std::lock_guard lock{mutex_};
 
-	ESP_LOGI(TAG, "Light %u set primary switch %d -> %d (%s)",
+	ESP_LOGD(TAG, "Light %u set primary switch %d -> %d (%s)",
 		index_, primary_on_, state, local ? "local" : "remote");
 	primary_on_ = state;
 
@@ -223,7 +223,7 @@ void Light::secondary_switch(bool state, bool local) {
 }
 
 void Light::secondary_switch_locked(bool state, bool local) {
-	ESP_LOGI(TAG, "Light %u set secondary switch %d -> %d (%s)",
+	ESP_LOGD(TAG, "Light %u set secondary switch %d -> %d (%s)",
 		index_, secondary_on_, state, local ? "local" : "remote");
 	secondary_on_ = state;
 }
@@ -231,7 +231,7 @@ void Light::secondary_switch_locked(bool state, bool local) {
 void Light::tertiary_switch(bool state) {
 	std::lock_guard lock{mutex_};
 
-	ESP_LOGI(TAG, "Light %u set tertiary switch %d -> %d",
+	ESP_LOGD(TAG, "Light %u set tertiary switch %d -> %d",
 		index_, tertiary_on_, state);
 	tertiary_on_ = state;
 	update_state();
@@ -241,8 +241,7 @@ void Light::tertiary_switch(bool state) {
 void Light::enable(bool state) {
 	std::lock_guard lock{mutex_};
 
-	ESP_LOGI(TAG, "Light %u set enable %d -> %d",
-		index_, enable_, state);
+	ESP_LOGD(TAG, "Light %u set enable %d -> %d", index_, enable_, state);
 	enable_nvs(state);
 	enable_ = state;
 	update_state();
@@ -250,7 +249,7 @@ void Light::enable(bool state) {
 
 void Light::update_state() {
 	bool on = (enable_ && primary_on_) || secondary_on_ || tertiary_on_;
-	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
+	ESP_LOGD(TAG, "Light %u update state %d -> %d", index_, on_, on);
 	on_ = on;
 	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
 	request_refresh();
@@ -305,7 +304,7 @@ void PrimaryEndpoint::refresh() {
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
 
-		ESP_LOGI(TAG, "Light %u report primary switch %u", light_.index(), value);
+		ESP_LOGD(TAG, "Light %u report primary switch %u", light_.index(), value);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
@@ -336,7 +335,7 @@ void SecondaryEndpoint::refresh() {
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
 
-		ESP_LOGI(TAG, "Light %u report secondary switch %u", light_.index(), value);
+		ESP_LOGD(TAG, "Light %u report secondary switch %u", light_.index(), value);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
@@ -382,7 +381,7 @@ void TertiaryEndpoint::refresh() {
 	if (new_state != state_) {
 		uint8_t value = new_state ? 1 : 0;
 
-		ESP_LOGI(TAG, "Light %u report tertiary switch %u", light_.index(), value);
+		ESP_LOGD(TAG, "Light %u report tertiary switch %u", light_.index(), value);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
@@ -445,7 +444,7 @@ void SwitchStatusEndpoint::refresh() {
 	uint8_t new_state = light_.switch_on() ? 1 : 0;
 
 	if (new_state != state_) {
-		ESP_LOGI(TAG, "Light %u report switch state %u", light_.index(), new_state);
+		ESP_LOGD(TAG, "Light %u report switch state %u", light_.index(), new_state);
 
 		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,

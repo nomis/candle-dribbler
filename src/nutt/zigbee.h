@@ -65,6 +65,8 @@ protected:
 	~ZigbeeEndpoint() = default;
 
 public:
+	static constexpr const char *TAG = "nutt.ZigbeeEndpoint";
+
 	inline ep_id_t id() const { return id_; };
 	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
 	inline uint16_t profile_id() const { return profile_id_; };
@@ -76,8 +78,6 @@ public:
 	void update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 private:
-	static constexpr const char *TAG = "nutt.ZigbeeEndpoint";
-
 	const ep_id_t id_;
 	const uint16_t profile_id_;
 	const uint16_t device_id_;
@@ -100,13 +100,13 @@ public:
 	ZigbeeDevice(ZigbeeListener &listener);
 	~ZigbeeDevice() = delete;
 
+	static constexpr const char *TAG = "nutt.ZigbeeDevice";
+
 	void add(ZigbeeEndpoint &endpoint);
 	void start();
 	void network_join_or_leave();
 
 private:
-	static constexpr const char *TAG = "nutt.ZigbeeDevice";
-
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t set_attr_value_cb(esp_zb_zcl_set_attr_value_message_t message);
 	static esp_err_t ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message);

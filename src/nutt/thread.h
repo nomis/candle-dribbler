@@ -41,19 +41,19 @@ void make_thread(std::thread &t, const char *name, size_t stack_size,
 }
 
 class WakeupThread {
+public:
+	static constexpr const char *TAG = "nutt.WakeupThread";
+
 protected:
 	WakeupThread(const char *name);
 	~WakeupThread() = default;
 
-protected:
 	virtual unsigned long run_tasks() = 0;
 	void run_loop();
 	void wake_up();
 	IRAM_ATTR void wake_up_isr();
 
 private:
-	static constexpr const char *TAG = "nutt.WakeupThread";
-
 	static void wake_up_timer(void *arg);
 
 	const char *name_;

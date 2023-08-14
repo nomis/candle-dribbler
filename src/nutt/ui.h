@@ -107,6 +107,8 @@ public:
 	UserInterface(gpio_num_t network_join_pin);
 	~UserInterface() = delete;
 
+	static constexpr const char *TAG = "nutt.UI";
+
 	void attach(Device &device);
 	using WakeupThread::run_loop;
 
@@ -117,7 +119,6 @@ public:
 	void ota_update(bool ok);
 
 private:
-	static constexpr const char *TAG = "nutt.UI";
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
 	static const std::unordered_map<ui::Event,ui::LEDSequence> led_sequences_;
 

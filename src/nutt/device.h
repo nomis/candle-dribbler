@@ -37,6 +37,7 @@ public:
 	Device(UserInterface &ui);
 	~Device() = delete;
 
+	static constexpr const char *TAG = "nutt.Device";
 	/* Assumes 2 OTA partitions are configured */
 	static constexpr const size_t NUM_EP_PER_DEVICE = 3;
 
@@ -56,8 +57,6 @@ public:
 	void zigbee_ota_update(bool ok) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Device";
-
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_network_join_or_leave(uint8_t param);
 

@@ -151,7 +151,7 @@ esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t me
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
-			ESP_LOGI(TAG, "OTA receive data");
+			ESP_LOGD(TAG, "OTA receive data");
 			instance_->listener_.zigbee_ota_update(true);
 			break;
 
@@ -228,7 +228,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 	case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
 		if (status == ESP_OK) {
 			if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
-				ESP_LOGI(TAG, "Zigbee stack initialized");
+				ESP_LOGD(TAG, "Zigbee stack initialized");
 				uint16_t address = esp_zb_get_short_address();
 
 				update_state(ZigbeeState::DISCONNECTED, address != 0xFFFF);
@@ -239,7 +239,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			network_failed_ = true;
 			update_state(ZigbeeState::INIT);
 		} else {
-			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
+			ESP_LOGW(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 		}
 
 		if (state_ != ZigbeeState::INIT) {
@@ -247,19 +247,19 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
 
 				if (status == ESP_OK) {
-					ESP_LOGI(TAG, "Connecting (%s)", esp_zb_zdo_signal_to_string(type));
+					ESP_LOGD(TAG, "Connecting (%s)", esp_zb_zdo_signal_to_string(type));
 					update_state(ZigbeeState::CONNECTING);
 					ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(
 						type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP
 						? ESP_ZB_BDB_MODE_INITIALIZATION
 						: ESP_ZB_BDB_MODE_NETWORK_STEERING));
 				} else {
-					ESP_LOGI(TAG, "Retry");
+					ESP_LOGD(TAG, "Retry");
 					update_state(ZigbeeState::RETRY);
 					esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
 				}
 			} else {
-				ESP_LOGI(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
+				ESP_LOGD(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
 				update_state(ZigbeeState::DISCONNECTED);
 			}
 		}
@@ -276,9 +276,9 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
 		} else {
-			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
+			ESP_LOGW(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;
-			ESP_LOGI(TAG, "Retry");
+			ESP_LOGD(TAG, "Retry");
 			update_state(ZigbeeState::RETRY);
 			esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
 			esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
@@ -305,7 +305,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					ESP_LOGE(TAG, "Device removed (type: %u)", params->leave_type);
 				}
 
-				ESP_LOGI(TAG, "Waiting for pairing button press");
+				ESP_LOGD(TAG, "Waiting for pairing button press");
 				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
 				update_state(ZigbeeState::DISCONNECTED, false);
 			}
@@ -348,7 +348,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
 	if (instance_->state_ == ZigbeeState::RETRY) {
-		ESP_LOGI(TAG, "Connecting (retry)");
+		ESP_LOGD(TAG, "Connecting (retry)");
 		instance_->update_state(ZigbeeState::CONNECTING);
 		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(mode_mask));
 	}

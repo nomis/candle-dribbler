@@ -73,7 +73,7 @@ void Device::request_refresh() {
 }
 
 void Device::do_refresh() {
-	ESP_LOGI(TAG, "Refresh");
+	ESP_LOGD(TAG, "Refresh");
 
 	for (Light &light : lights_)
 		light.refresh();
@@ -141,20 +141,20 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 	if (date_code.empty())
 		date_code.append(8, '0');
 
-	ESP_LOGI(TAG, "Date code: %s", date_code.c_str());
+	ESP_LOGD(TAG, "Date code: %s", date_code.c_str());
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
 		ZigbeeString{date_code, 16}.data()));
 
 	if (!label.empty()) {
-		ESP_LOGI(TAG, "Label: %s", label.c_str());
+		ESP_LOGD(TAG, "Label: %s", label.c_str());
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
 			ZigbeeString{label, 70}.data()));
 	}
 
 	if (!version.empty()) {
-		ESP_LOGI(TAG, "Version: %s", version.c_str());
+		ESP_LOGD(TAG, "Version: %s", version.c_str());
 		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
 			ZigbeeString{version, 70}.data()));
@@ -264,7 +264,7 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 		mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 	serial_number.append(mac_str.data());
 
-	ESP_LOGI(TAG, "Serial Number: %s", serial_number.c_str());
+	ESP_LOGD(TAG, "Serial Number: %s", serial_number.c_str());
 
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_SERIAL_NUMBER_ID, ZigbeeString{serial_number, 50}.data()));
@@ -359,7 +359,7 @@ void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	default: label += "undefined"; break;
 	}
 
-	ESP_LOGI(TAG, "App Partition: %zu", index_);
+	ESP_LOGD(TAG, "App Partition: %zu", index_);
 
 	Device::configure_basic_cluster(*basic_cluster, label,
 		!esp_ota_get_partition_description(part, &desc) ? &desc : nullptr);

@@ -17,13 +17,16 @@
  */
 
 #include <esp_err.h>
+#include <esp_log.h>
 #include <nvs_flash.h>
 #include <sdkconfig.h>
 #include <driver/gpio.h>
 
 #include "nutt/device.h"
 #include "nutt/light.h"
+#include "nutt/thread.h"
 #include "nutt/ui.h"
+#include "nutt/zigbee.h"
 
 using namespace nutt;
 
@@ -35,6 +38,14 @@ static_assert(nutt::Device::NUM_EP_PER_DEVICE + MAX_LIGHTS * nutt::Light::NUM_EP
 	"You'll need to ask Espressif to let you use more endpoints");
 
 extern "C" void app_main() {
+	constexpr esp_log_level_t log_level = ESP_LOG_INFO;
+	esp_log_level_set(nutt::Device::TAG, log_level);
+	esp_log_level_set(nutt::Light::TAG, log_level);
+	esp_log_level_set(nutt::UserInterface::TAG, log_level);
+	esp_log_level_set(nutt::ZigbeeDevice::TAG, log_level);
+	esp_log_level_set(nutt::ZigbeeEndpoint::TAG, log_level);
+	esp_log_level_set(nutt::WakeupThread::TAG, log_level);
+
 	esp_err_t err = nvs_flash_init();
 	if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 		ESP_ERROR_CHECK(nvs_flash_erase());
