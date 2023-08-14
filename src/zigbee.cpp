@@ -20,7 +20,6 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
-#include <esp_ota_ops.h>
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
 
@@ -276,11 +275,6 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					esp_zb_get_short_address());
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
-
-			if (!ota_validated_) {
-				esp_ota_mark_app_valid_cancel_rollback();
-				ota_validated_ = true;
-			}
 		} else {
 			ESP_LOGI(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;

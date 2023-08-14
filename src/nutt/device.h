@@ -69,6 +69,7 @@ private:
 	UserInterface &ui_;
 	ZigbeeDevice &zigbee_;
 	std::vector<std::reference_wrapper<Light>> lights_;
+	bool ota_validated_{false};
 };
 
 namespace device {

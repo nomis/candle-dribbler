@@ -186,6 +186,13 @@ void Device::zigbee_network_state(bool configured, ZigbeeState state,
 	}
 
 	ui_.network_state(configured, ui_state);
+
+	if (state == ZigbeeState::CONNECTED) {
+		if (!ota_validated_) {
+			esp_ota_mark_app_valid_cancel_rollback();
+			ota_validated_ = true;
+		}
+	}
 }
 
 void Device::zigbee_network_error() {
