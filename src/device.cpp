@@ -23,6 +23,7 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_mac.h>
+#include <esp_partition.h>
 #include <esp_ota_ops.h>
 
 #include <algorithm>
@@ -42,15 +43,42 @@ namespace nutt {
 Device *Device::instance_{nullptr};
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
-		zigbee_(*new ZigbeeDevice{*this}) {
+		zigbee_(*new ZigbeeDevice{*this}),
+		main_ep_(*new device::MainEndpoint{*this, "uuid.uk", "candle-dribbler",
+			"https://github.com/nomis/candle-dribbler"}) {
 	assert(!instance_);
 	instance_ = this;
 
-	zigbee_.add(*new device::MainEndpoint{*this, "uuid.uk", "candle-dribbler",
-		"https://github.com/nomis/candle-dribbler"});
+	part_current_ = esp_ota_get_running_partition();
+	part_next_ = esp_ota_get_next_update_partition(nullptr);
+	part_boot_ = esp_ota_get_boot_partition();
 
-	for (size_t i = 0; i < esp_ota_get_app_partition_count(); i++)
-		zigbee_.add(*new device::SoftwareEndpoint{i});
+	esp_ota_img_states_t state;
+
+	if (!esp_ota_get_state_partition(part_current_, &state)) {
+		if (state == ESP_OTA_IMG_VALID) {
+			ota_validated_ = true;
+		}
+	}
+
+	zigbee_.add(main_ep_);
+
+	auto part_count = esp_ota_get_app_partition_count();
+	const esp_partition_t *part = part_current_;
+
+	if (part->subtype == ESP_PARTITION_SUBTYPE_APP_FACTORY) {
+		ota_validated_ = true;
+		part = esp_ota_get_next_update_partition(part);
+	}
+
+	for (size_t i = 0; i < part_count; i++, part = esp_ota_get_next_update_partition(part)) {
+		parts_.push_back(part);
+
+		auto software_ep = new device::SoftwareEndpoint{*this, i};
+
+		software_eps_.emplace_back(*software_ep);
+		zigbee_.add(*software_ep);
+	}
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -100,10 +128,20 @@ unsigned long Device::run_tasks() {
 	return wait_ms;
 }
 
-void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
-		std::string label, const esp_app_desc_t *desc) {
-	std::string date_code;
-	std::string version;
+void Device::make_app_info(int app_index, std::string &label, std::string &date_code, std::string &version) {
+	const esp_partition_t *part = app_index < 0 ? part_current_ : parts_.at(app_index);
+	const esp_app_desc_t *desc{nullptr};
+	esp_app_desc_t part_desc{};
+
+	label.clear();
+	date_code.clear();
+	version.clear();
+
+	if (app_index < 0) {
+		desc = esp_app_get_description();
+	} else if (!esp_ota_get_partition_description(part, &part_desc)) {
+		desc = &part_desc;
+	}
 
 	if (desc) {
 		if (std::strlen(desc->date)) {
@@ -128,37 +166,77 @@ void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
 				date_code += 'Z';
 		}
 
-		if (!label.empty())
-			label += " | ";
-
 		label += desc->project_name;
+		label += " | ";
 
 		version = desc->version;
 		version += " | ";
 		version += desc->idf_ver;
 	}
 
+	label += part->label;
+
+	if (part == part_current_) {
+		label += " [current]";
+	}
+	if (part == part_next_) {
+		label += " [next]";
+	}
+	if (part == part_boot_) {
+		label += " [boot]";
+	}
+
+	if (app_index >= 0) {
+		esp_ota_img_states_t state;
+
+		if (esp_ota_get_state_partition(part, &state))
+			state = ESP_OTA_IMG_UNDEFINED;
+
+		label += ' ';
+		switch (state) {
+		case ESP_OTA_IMG_NEW: label += "new"; break;
+		case ESP_OTA_IMG_PENDING_VERIFY: label += "pending-verify"; break;
+		case ESP_OTA_IMG_VALID: label += "valid"; break;
+		case ESP_OTA_IMG_INVALID: label += "invalid"; break;
+		case ESP_OTA_IMG_ABORTED: label += "aborted"; break;
+		default: label += "undefined"; break;
+		}
+	}
+
 	if (date_code.empty())
 		date_code.append(8, '0');
+}
+
+void Device::configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
+		int app_index) {
+	std::string label, date_code, version;
+
+	make_app_info(app_index, label, date_code, version);
 
 	ESP_LOGD(TAG, "Date code: %s", date_code.c_str());
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
-		ZigbeeString{date_code, 16}.data()));
+		ZigbeeString{date_code, MAX_DATE_CODE_LENGTH}.data()));
 
-	if (!label.empty()) {
-		ESP_LOGD(TAG, "Label: %s", label.c_str());
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
-			ZigbeeString{label, 70}.data()));
-	}
+	ESP_LOGD(TAG, "Label: %s", label.c_str());
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+		ZigbeeString{label, MAX_STRING_LENGTH}.data()));
 
-	if (!version.empty()) {
-		ESP_LOGD(TAG, "Version: %s", version.c_str());
-		ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
-			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
-			ZigbeeString{version, 70}.data()));
-	}
+	ESP_LOGD(TAG, "Version: %s", version.c_str());
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(&basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
+		ZigbeeString{version, MAX_STRING_LENGTH}.data()));
+}
+
+void Device::reload_app_info(bool full) {
+	part_next_ = esp_ota_get_next_update_partition(nullptr);
+	part_boot_ = esp_ota_get_boot_partition();
+
+	main_ep_.reload_app_info();
+
+	for (device::SoftwareEndpoint &software_ep : software_eps_)
+		software_ep.reload_app_info(full);
 }
 
 void Device::zigbee_network_state(bool configured, ZigbeeState state,
@@ -191,6 +269,7 @@ void Device::zigbee_network_state(bool configured, ZigbeeState state,
 		if (!ota_validated_) {
 			esp_ota_mark_app_valid_cancel_rollback();
 			ota_validated_ = true;
+			reload_app_info(false);
 		}
 	}
 }
@@ -199,8 +278,12 @@ void Device::zigbee_network_error() {
 	ui_.network_error();
 }
 
-void Device::zigbee_ota_update(bool ok) {
+void Device::zigbee_ota_update(bool ok, bool app_changed) {
 	ui_.ota_update(ok);
+
+	if (app_changed) {
+		reload_app_info(true);
+	}
 }
 
 namespace device {
@@ -269,7 +352,7 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_SERIAL_NUMBER_ID, ZigbeeString{serial_number, 50}.data()));
 
-	Device::configure_basic_cluster(*basic_cluster, "", esp_app_get_description());
+	device_.configure_basic_cluster(*basic_cluster, -1);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
 		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -278,6 +361,8 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 
 	if (OTA_SUPPORTED) {
+		ESP_LOGD(TAG, "OTA supported");
+
 		esp_zb_ota_cluster_cfg_t ota_config{};
 		ota_config.ota_upgrade_manufacturer = OTA_MANUFACTURER_ID;
 		ota_config.ota_upgrade_image_type = OTA_IMAGE_TYPE_ID;
@@ -298,6 +383,19 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	}
 }
 
+void MainEndpoint::reload_app_info() {
+	std::string label, date_code, version;
+
+	device_.make_app_info(-1, label, date_code, version);
+
+	ESP_LOGD(TAG, "Label: %s", label.c_str());
+	update_attr_value(
+		ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
+}
+
 esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,
 		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
 	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY) {
@@ -313,59 +411,51 @@ esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,
 	return ESP_ERR_INVALID_ARG;
 }
 
-SoftwareEndpoint::SoftwareEndpoint(size_t index)
+SoftwareEndpoint::SoftwareEndpoint(Device &device, size_t index)
 		: ZigbeeEndpoint(BASE_EP_ID + index,
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		index_(index) {
+		device_(device), index_(index) {
 }
 
 void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
 
-	const esp_partition_t *current = esp_ota_get_running_partition();
-	const esp_partition_t *next = esp_ota_get_next_update_partition(nullptr);
-	const esp_partition_t *boot = esp_ota_get_boot_partition();
-	const esp_partition_t *part = current;
-	esp_app_desc_t desc;
-	std::string label;
-
-	for (int i = 0; i < esp_ota_get_app_partition_count() && i <= index_;
-			i++, part = esp_ota_get_next_update_partition(part)) {}
-
-	label = part->label;
-
-	if (part == current) {
-		label += " [current]";
-	}
-	if (part == next) {
-		label += " [next]";
-	}
-	if (part == boot) {
-		label += " [boot]";
-	}
-
-	esp_ota_img_states_t state;
-
-	if (esp_ota_get_state_partition(part, &state))
-		state = ESP_OTA_IMG_UNDEFINED;
-
-	label += ' ';
-	switch (state) {
-	case ESP_OTA_IMG_NEW: label += "new"; break;
-	case ESP_OTA_IMG_PENDING_VERIFY: label += "pending-verify"; break;
-	case ESP_OTA_IMG_VALID: label += "valid"; break;
-	case ESP_OTA_IMG_INVALID: label += "invalid"; break;
-	case ESP_OTA_IMG_ABORTED: label += "aborted"; break;
-	default: label += "undefined"; break;
-	}
-
 	ESP_LOGD(TAG, "App Partition: %zu", index_);
 
-	Device::configure_basic_cluster(*basic_cluster, label,
-		!esp_ota_get_partition_description(part, &desc) ? &desc : nullptr);
+	device_.configure_basic_cluster(*basic_cluster, index_);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
 		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+}
+
+void SoftwareEndpoint::reload_app_info(bool full) {
+	std::string label, date_code, version;
+
+	device_.make_app_info(index_, label, date_code, version);
+
+	ESP_LOGD(TAG, "App Partition: %zu", index_);
+
+	if (full) {
+		ESP_LOGD(TAG, "Date code: %s", date_code.c_str());
+		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
+			ZigbeeString{date_code, Device::MAX_DATE_CODE_LENGTH}.data());
+	}
+
+	ESP_LOGD(TAG, "Label: %s", label.c_str());
+	update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
+
+	if (full) {
+		ESP_LOGD(TAG, "Version: %s", version.c_str());
+		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
+			ZigbeeString{version, Device::MAX_STRING_LENGTH}.data());
+	}
 }
 
 } // namespace device

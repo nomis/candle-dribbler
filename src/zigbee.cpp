@@ -138,56 +138,80 @@ void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
 }
 
 esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message) {
+	return instance_->ota_upgrade(message);
+}
+
+esp_err_t ZigbeeDevice::ota_upgrade(esp_zb_zcl_ota_update_message_t message) {
 	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+		if (message.update_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
+			if (ota_receive_not_logged_) {
+				ESP_LOGD(TAG, "OTA (%zu receive data messages suppressed)",
+					ota_receive_not_logged_);
+				ota_receive_not_logged_ = 0;
+			}
+			ota_last_receive_us_ = 0;
+		}
+
 		switch (message.update_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_APPLY:
 			ESP_LOGI(TAG, "OTA apply");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true);
 			break;
 
-		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
-			ESP_LOGD(TAG, "OTA receive data");
-			instance_->listener_.zigbee_ota_update(true);
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE: {
+				uint64_t now_us = esp_timer_get_time();
+
+				if (!ota_last_receive_us_
+						|| now_us - ota_last_receive_us_ >= 30 * 1000 * 1000) {
+					ESP_LOGD(TAG, "OTA receive data (%zu messages suppressed)",
+						ota_receive_not_logged_);
+					ota_last_receive_us_ = now_us;
+					ota_receive_not_logged_ = 0;
+				} else {
+					ota_receive_not_logged_++;
+				}
+				listener_.zigbee_ota_update(true);
+			}
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_FINISH:
 			ESP_LOGI(TAG, "OTA finished");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ABORT:
 			ESP_LOGI(TAG, "OTA aborted");
-			instance_->listener_.zigbee_ota_update(false);
+			listener_.zigbee_ota_update(false, true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_CHECK:
 			ESP_LOGI(TAG, "OTA data complete");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true, true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_OK:
 			ESP_LOGI(TAG, "OTA data ok");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ERROR:
 			ESP_LOGI(TAG, "OTA data error");
-			instance_->listener_.zigbee_ota_update(false);
+			listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_IMAGE_STATUS_NORMAL:
 			ESP_LOGI(TAG, "OTA image accepted");
-			instance_->listener_.zigbee_ota_update(true);
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_BUSY:
 			ESP_LOGI(TAG, "OTA busy");
-			instance_->listener_.zigbee_ota_update(false);
+			listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_SERVER_NOT_FOUND:

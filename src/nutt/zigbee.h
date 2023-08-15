@@ -116,6 +116,8 @@ private:
 	esp_err_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
+	esp_err_t ota_upgrade(esp_zb_zcl_ota_update_message_t message);
+
 	void update_state(ZigbeeState state);
 	void update_state(ZigbeeState state, bool configured);
 
@@ -128,6 +130,8 @@ private:
 	bool network_configured_{false};
 	bool network_failed_{false};
 	ZigbeeState state_{ZigbeeState::INIT};
+	uint64_t ota_last_receive_us_{0};
+	size_t ota_receive_not_logged_{0};
 };
 
 class ZigbeeListener {
@@ -138,7 +142,7 @@ protected:
 public:
 	virtual void zigbee_network_state(bool configured, ZigbeeState state, bool failed) = 0;
 	virtual void zigbee_network_error() = 0;
-	virtual void zigbee_ota_update(bool ok) = 0;
+	virtual void zigbee_ota_update(bool ok, bool app_changed = false) = 0;
 };
 
 } // namespace nutt

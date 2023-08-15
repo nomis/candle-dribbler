@@ -20,6 +20,7 @@
 
 #include <esp_app_desc.h>
 #include <esp_attr.h>
+#include <esp_partition.h>
 
 #include <functional>
 #include <vector>
@@ -32,6 +33,13 @@ namespace nutt {
 class Light;
 class UserInterface;
 
+namespace device {
+
+class MainEndpoint;
+class SoftwareEndpoint;
+
+} // namespace device
+
 class Device: public WakeupThread, public ZigbeeListener {
 public:
 	Device(UserInterface &ui);
@@ -40,6 +48,8 @@ public:
 	static constexpr const char *TAG = "nutt.Device";
 	/* Assumes 2 OTA partitions are configured */
 	static constexpr const size_t NUM_EP_PER_DEVICE = 3;
+	static constexpr const size_t MAX_DATE_CODE_LENGTH = 16;
+	static constexpr const size_t MAX_STRING_LENGTH = 70;
 
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
@@ -49,17 +59,18 @@ public:
 	inline UserInterface& ui() { return ui_; };
 	void network_join_or_leave();
 
-	static void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster,
-		std::string label, const esp_app_desc_t *desc);
+	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster, int app_index);
+	void make_app_info(int index, std::string &label, std::string &date_code, std::string &version);
 
 	void zigbee_network_state(bool configured, ZigbeeState state, bool failed) override;
 	void zigbee_network_error() override;
-	void zigbee_ota_update(bool ok) override;
+	void zigbee_ota_update(bool ok, bool app_changed) override;
 
 private:
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_network_join_or_leave(uint8_t param);
 
+	void reload_app_info(bool full);
 	void do_refresh();
 	unsigned long run_tasks() override;
 
@@ -67,6 +78,12 @@ private:
 
 	UserInterface &ui_;
 	ZigbeeDevice &zigbee_;
+	const esp_partition_t *part_current_;
+	const esp_partition_t *part_next_;
+	const esp_partition_t *part_boot_;
+	std::vector<const esp_partition_t*> parts_;
+	device::MainEndpoint &main_ep_;
+	std::vector<std::reference_wrapper<device::SoftwareEndpoint>> software_eps_;
 	std::vector<std::reference_wrapper<Light>> lights_;
 	bool ota_validated_{false};
 };
@@ -80,6 +97,7 @@ public:
 	~MainEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void reload_app_info();
 	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *data)  override;
 
@@ -109,14 +127,17 @@ private:
 
 class SoftwareEndpoint: public ZigbeeEndpoint {
 public:
-	SoftwareEndpoint(size_t index);
+	SoftwareEndpoint(Device &device, size_t index);
 	~SoftwareEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void reload_app_info(bool full);
 
 private:
 	static constexpr const char *TAG = "nutt.Device";
 	static constexpr const ep_id_t BASE_EP_ID = 200;
+
+	Device &device_;
 	size_t index_;
 };
 
