@@ -24,6 +24,7 @@
 #include <esp_zigbee_core.h>
 
 #include <algorithm>
+#include <cstring>
 #include <string_view>
 #include <thread>
 
@@ -291,12 +292,24 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 	case ESP_ZB_BDB_SIGNAL_STEERING:
 		if (status == ESP_OK) {
+			uint16_t short_address = esp_zb_get_short_address();
+			uint16_t pan_id = esp_zb_get_pan_id();
 			esp_zb_ieee_addr_t extended_pan_id;
 			esp_zb_get_extended_pan_id(extended_pan_id);
+
+			if (state_ == ZigbeeState::DISCONNECTED
+					&& short_address == 0xfffe && pan_id == 0xffff
+					&& extended_pan_id[0] == 0
+					&& !std::memcmp(&extended_pan_id[0], &extended_pan_id[1],
+						sizeof(extended_pan_id) - sizeof(extended_pan_id[0]))) {
+				/* Workaround false join event when leaving while connecting */
+				ESP_LOGW(TAG, "Ignoring invalid join signal");
+				break;
+			}
+
 			ESP_LOGI(TAG, "Joined network successfully (%s/0x%04x@%u as 0x%04x)",
 					zigbee_address_string(extended_pan_id).c_str(),
-					esp_zb_get_pan_id(), esp_zb_get_current_channel(),
-					esp_zb_get_short_address());
+					pan_id, esp_zb_get_current_channel(), short_address);
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
 		} else {
