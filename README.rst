@@ -1,14 +1,13 @@
 Candle Dribbler
 ===============
 
-ESP32 Zigbee multi-channel light controller and 433 MHz RF receiver.
+ESP32 Zigbee multi-channel light controller.
 
-Supports up to 6 lights (switch and relay) as well as the SONOFF RM433 and
-Griffin AirClick RF receivers.
+Supports up to 6 lights (switch and relay).
 
 Requires an ESP32-H2 or ESP32-C6.
 
-Work in progress, doesn't do any RF or OTA updates yet.
+Work in progress.
 
 	...some very big candles that were just lava streams of wax, and a raven on
 	a skull.
