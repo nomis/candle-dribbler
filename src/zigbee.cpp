@@ -386,7 +386,10 @@ void ZigbeeDevice::network_join_or_leave() {
 
 		if (network_configured_ || state_ != ZigbeeState::DISCONNECTED) {
 			ESP_LOGI(TAG, "Leave network");
-			esp_zb_factory_reset();
+			esp_zb_zdo_mgmt_leave_req_param_t param{};
+			esp_zb_get_long_address(param.device_address);
+			param.dst_nwk_addr = 0xffff;
+			esp_zb_zdo_device_leave_req(&param, nullptr, nullptr);
 			instance_->update_state(ZigbeeState::DISCONNECTED);
 		} else {
 			ESP_LOGI(TAG, "Connecting (join network)");
