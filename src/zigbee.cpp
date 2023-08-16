@@ -256,7 +256,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 				ESP_LOGD(TAG, "Zigbee stack initialized");
 				uint16_t address = esp_zb_get_short_address();
 
-				update_state(ZigbeeState::DISCONNECTED, address != 0xFFFF);
+				update_state(ZigbeeState::DISCONNECTED, address < 0xFFF8);
 				ESP_LOGI(TAG, "Device address: 0x%04x (network %sconfigured)", address, network_configured_ ? "" : "not ");
 			}
 		} else if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
