@@ -23,7 +23,7 @@ config NUTT_RELAY_ACTIVE_LOW
 config NUTT_UI_LED_BRIGHTNESS
 	int "RGB LED brightness"
 	range 0 255
-	default 32
+	default 8
 	help
 		Configure LED brightness.
 
