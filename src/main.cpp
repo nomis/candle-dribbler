@@ -67,7 +67,8 @@ extern "C" void app_main() {
 	if (MAX_LIGHTS >= 4) (new Light{4, GPIO_NUM_10, SWITCH_ACTIVE_LOW,  GPIO_NUM_21, RELAY_ACTIVE_LOW })->attach(device);
 	if (MAX_LIGHTS >= 5) (new Light{5, GPIO_NUM_1,  SWITCH_ACTIVE_LOW,  GPIO_NUM_22, RELAY_ACTIVE_LOW })->attach(device);
 	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  SWITCH_ACTIVE_LOW,  GPIO_NUM_23, RELAY_ACTIVE_LOW })->attach(device);
-	if (MAX_LIGHTS >= 7) (new Light{7, GPIO_NUM_7,  SWITCH_ACTIVE_LOW,  GPIO_NUM_6,  RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 7) (new Light{7, GPIO_NUM_7,  SWITCH_ACTIVE_LOW,  GPIO_NUM_15, RELAY_ACTIVE_LOW })->attach(device);
+	if (MAX_LIGHTS >= 8) (new Light{8, GPIO_NUM_6,  SWITCH_ACTIVE_LOW,  GPIO_NUM_5,  RELAY_ACTIVE_LOW })->attach(device);
 	device.start();
 
 	ui.attach(device);

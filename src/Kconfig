@@ -3,7 +3,7 @@ menu "Candle Dribbler"
 
 config NUTT_MAX_LIGHTS
 	int "Number of lights supported"
-	range 1 7
+	range 1 8
 	default 1
 	help
 		Configure number of lights that are supported.
