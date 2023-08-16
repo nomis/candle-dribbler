@@ -391,24 +391,34 @@ void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
 	}
 }
 
-void ZigbeeDevice::network_join_or_leave() {
-	if (state_ != ZigbeeState::INIT) {
-		esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
+void ZigbeeDevice::network_do(ZigbeeAction action) {
+	if (state_ == ZigbeeState::INIT) {
+		return;
+	}
 
-		network_failed_ = false;
-
+	if (action == ZigbeeAction::JOIN_OR_LEAVE) {
 		if (network_configured_ || state_ != ZigbeeState::DISCONNECTED) {
-			ESP_LOGI(TAG, "Leave network");
-			esp_zb_zdo_mgmt_leave_req_param_t param{};
-			esp_zb_get_long_address(param.device_address);
-			param.dst_nwk_addr = 0xffff;
-			esp_zb_zdo_device_leave_req(&param, nullptr, nullptr);
-			instance_->update_state(ZigbeeState::DISCONNECTED);
+			action = ZigbeeAction::LEAVE;
 		} else {
-			ESP_LOGI(TAG, "Connecting (join network)");
-			instance_->update_state(ZigbeeState::CONNECTING);
-			ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
+			action = ZigbeeAction::JOIN;
 		}
+	}
+
+	esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
+
+	network_failed_ = false;
+
+	if (action == ZigbeeAction::JOIN) {
+		ESP_LOGI(TAG, "Connecting (join network)");
+		instance_->update_state(ZigbeeState::CONNECTING);
+		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
+	} else if (action == ZigbeeAction::LEAVE) {
+		ESP_LOGI(TAG, "Leave network");
+		esp_zb_zdo_mgmt_leave_req_param_t param{};
+		esp_zb_get_long_address(param.device_address);
+		param.dst_nwk_addr = 0xffff;
+		esp_zb_zdo_device_leave_req(&param, nullptr, nullptr);
+		instance_->update_state(ZigbeeState::DISCONNECTED);
 	}
 }
 

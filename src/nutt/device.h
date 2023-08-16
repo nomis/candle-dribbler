@@ -57,7 +57,7 @@ public:
 	using WakeupThread::wake_up_isr;
 
 	inline UserInterface& ui() { return ui_; };
-	void network_join_or_leave();
+	void network_do(ZigbeeAction action);
 
 	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster, int app_index);
 	void make_app_info(int index, std::string &label, std::string &date_code, std::string &version);
@@ -68,7 +68,7 @@ public:
 
 private:
 	static void scheduled_refresh(uint8_t param);
-	static void scheduled_network_join_or_leave(uint8_t param);
+	static void scheduled_network_do(uint8_t param);
 
 	void reload_app_info(bool full);
 	void do_refresh();

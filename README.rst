@@ -26,7 +26,7 @@ Work in progress.
 Usage
 -----
 
-Press the "boot" GPIO to join/leave the Zigbee network. Joining a new network is
+Connect GPIO4 to GND to join/leave the Zigbee network. Joining a new network is
 not performed automatically. Leaving the network currently requires a restart.
 
 Each physical light has a switch GPIO and a relay GPIO and presents the

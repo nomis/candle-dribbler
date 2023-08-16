@@ -30,6 +30,7 @@
 #include <unordered_map>
 
 #include "nutt/device.h"
+#include "nutt/zigbee.h"
 
 namespace nutt {
 
@@ -63,7 +64,9 @@ using ui::Event;
 using ui::NetworkState;
 using ui::RGBColour;
 
-UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
+UserInterface::UserInterface(gpio_num_t network_join_pin, bool active_low)
+		: WakeupThread("UI"), button_pin_(network_join_pin),
+		button_active_low_(active_low) {
 	led_strip_config_t led_strip_config{};
 	led_strip_rmt_config_t rmt_config{};
 
@@ -81,7 +84,7 @@ UserInterface::UserInterface(gpio_num_t network_join_pin): WakeupThread("UI") {
 		.mode = GPIO_MODE_INPUT,
 		.pull_up_en = GPIO_PULLUP_ENABLE,
 		.pull_down_en = GPIO_PULLDOWN_DISABLE,
-		.intr_type = GPIO_INTR_NEGEDGE,
+		.intr_type = GPIO_INTR_ANYEDGE,
 	};
 
 	ESP_ERROR_CHECK(gpio_config(&network_join_config));
@@ -93,7 +96,7 @@ void ui_network_join_interrupt_handler(void *arg) {
 }
 
 void UserInterface::network_join_interrupt_handler() {
-	button_press_count_irq_++;
+	button_change_count_irq_++;
 	wake_up_isr();
 }
 
@@ -110,18 +113,42 @@ void UserInterface::attach(Device &device) {
 }
 
 unsigned long UserInterface::run_tasks() {
-	unsigned long button_press_count_copy = button_press_count_irq_;
+	unsigned long wait_ms = ULONG_MAX;
+	unsigned long button_change_count_copy = button_change_count_irq_;
+	uint64_t now_us = esp_timer_get_time();
+	int level = gpio_get_level(button_pin_);
 
-	if (button_press_count_copy != button_press_count_) {
-		button_press_count_ = button_press_count_copy;
-		ESP_LOGI(TAG, "Network join/leave button pressed");
-		Device *device = device_;
-
-		if (device)
-			device->network_join_or_leave();
+	if (button_change_count_ != button_change_count_copy) {
+		button_change_count_ = button_change_count_copy;
+		button_change_us_ = now_us;
 	}
 
-	return update_led();
+	if (button_change_state_ != level) {
+		button_change_state_ = level;
+		button_change_us_ = now_us;
+	}
+
+	uint64_t debounce_us = button_change_state_ == button_active() ? DEBOUNCE_PRESS_US : DEBOUNCE_RELEASE_US;
+
+	if (button_state_ != button_change_state_) {
+		if (now_us - button_change_us_ >= debounce_us) {
+			Device *device = device_;
+
+			button_state_ = button_change_state_;
+
+			if (button_state_ == button_active()) {
+				ESP_LOGI(TAG, "Network join/leave button pressed");
+
+				if (device) {
+					device->network_do(ZigbeeAction::JOIN_OR_LEAVE);
+				}
+			}
+		} else {
+			wait_ms = (debounce_us - (now_us - button_change_us_)) / 1000UL;
+		}
+	}
+
+	return std::min(wait_ms, update_led());
 }
 
 void UserInterface::start_event(Event event) {

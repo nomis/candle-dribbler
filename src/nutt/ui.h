@@ -104,7 +104,7 @@ class UserInterface: private WakeupThread {
 	friend void ui_network_join_interrupt_handler(void *arg);
 
 public:
-	UserInterface(gpio_num_t network_join_pin);
+	UserInterface(gpio_num_t network_join_pin, bool active_low);
 	~UserInterface() = delete;
 
 	static constexpr const char *TAG = "nutt.UI";
@@ -119,8 +119,13 @@ public:
 	void ota_update(bool ok);
 
 private:
+	static constexpr const uint64_t DEBOUNCE_PRESS_US = 100 * 1000;
+	static constexpr const uint64_t DEBOUNCE_RELEASE_US = 1 * 1000 * 1000;
 	static constexpr const uint8_t LED_LEVEL = CONFIG_NUTT_UI_LED_BRIGHTNESS;
 	static const std::unordered_map<ui::Event,ui::LEDSequence> led_sequences_;
+
+	inline int button_active() const { return button_active_low_ ? 0 : 1; }
+	inline int button_inactive() const { return button_active_low_ ? 1 : 0; }
 
 	unsigned long run_tasks() override;
 	IRAM_ATTR void network_join_interrupt_handler();
@@ -133,9 +138,16 @@ private:
 	unsigned long update_led();
 
 	led_strip_handle_t led_strip_{nullptr};
-	unsigned long button_press_count_{0};
-	std::atomic<unsigned long> button_press_count_irq_{0};
 	Device *device_{nullptr};
+
+	const gpio_num_t button_pin_;
+	const bool button_active_low_;
+
+	int button_change_state_{button_inactive()};
+	uint64_t button_change_us_{0};
+	int button_state_{button_inactive()};
+	unsigned long button_change_count_{0};
+	std::atomic<unsigned long> button_change_count_irq_{0};
 
 	uint64_t render_time_us_{0};
 	ui::Event render_event_{ui::Event::IDLE};
