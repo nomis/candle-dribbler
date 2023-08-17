@@ -28,6 +28,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "log.h"
 #include "thread.h"
 
 namespace nutt {
@@ -100,17 +101,17 @@ enum class NetworkState {
 
 } // namespace ui
 
-class UserInterface: private WakeupThread {
+class UserInterface: public WakeupThread {
 	friend void ui_network_join_interrupt_handler(void *arg);
 
 public:
-	UserInterface(gpio_num_t network_join_pin, bool active_low);
+	UserInterface(Logging &logging, gpio_num_t network_join_pin, bool active_low);
 	~UserInterface() = delete;
 
 	static constexpr const char *TAG = "nutt.UI";
 
 	void attach(Device &device);
-	using WakeupThread::run_loop;
+	void start();
 
 	void network_state(bool configured, ui::NetworkState state);
 	void network_error();
@@ -129,6 +130,8 @@ private:
 
 	unsigned long run_tasks() override;
 	IRAM_ATTR void network_join_interrupt_handler();
+	void uart_handler();
+
 	void start_event(ui::Event event);
 	void restart_event(ui::Event event);
 	bool event_active(ui::Event event);
@@ -137,6 +140,7 @@ private:
 	void set_led(ui::RGBColour colour);
 	unsigned long update_led();
 
+	Logging &logging_;
 	led_strip_handle_t led_strip_{nullptr};
 	Device *device_{nullptr};
 

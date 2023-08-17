@@ -392,16 +392,22 @@ void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
 }
 
 void ZigbeeDevice::network_do(ZigbeeAction action) {
+	ZigbeeAction toggle_action;
+
 	if (state_ == ZigbeeState::INIT) {
 		return;
 	}
 
+	if (network_configured_ || state_ != ZigbeeState::DISCONNECTED) {
+		toggle_action = ZigbeeAction::LEAVE;
+	} else {
+		toggle_action = ZigbeeAction::JOIN;
+	}
+
 	if (action == ZigbeeAction::JOIN_OR_LEAVE) {
-		if (network_configured_ || state_ != ZigbeeState::DISCONNECTED) {
-			action = ZigbeeAction::LEAVE;
-		} else {
-			action = ZigbeeAction::JOIN;
-		}
+		action = toggle_action;
+	} else if (action != toggle_action) {
+		return;
 	}
 
 	esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);

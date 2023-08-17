@@ -22,7 +22,11 @@
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <driver/gpio.h>
+#include <driver/uart.h>
+#include <freertos/FreeRTOS.h>
+#include <hal/uart_ll.h>
 #include <led_strip.h>
+#include <soc/uart_pins.h>
 #include <string.h>
 
 #include <bitset>
@@ -30,6 +34,7 @@
 #include <unordered_map>
 
 #include "nutt/device.h"
+#include "nutt/log.h"
 #include "nutt/zigbee.h"
 
 namespace nutt {
@@ -64,9 +69,9 @@ using ui::Event;
 using ui::NetworkState;
 using ui::RGBColour;
 
-UserInterface::UserInterface(gpio_num_t network_join_pin, bool active_low)
-		: WakeupThread("UI"), button_pin_(network_join_pin),
-		button_active_low_(active_low) {
+UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
+		bool active_low) : WakeupThread("UI"), logging_(logging),
+		button_pin_(network_join_pin), button_active_low_(active_low) {
 	led_strip_config_t led_strip_config{};
 	led_strip_rmt_config_t rmt_config{};
 
@@ -88,7 +93,27 @@ UserInterface::UserInterface(gpio_num_t network_join_pin, bool active_low)
 	};
 
 	ESP_ERROR_CHECK(gpio_config(&network_join_config));
+	ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, U0TXD_GPIO_NUM, U0RXD_GPIO_NUM,
+		UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 	ESP_ERROR_CHECK(gpio_isr_handler_add(network_join_pin, ui_network_join_interrupt_handler, this));
+
+	uart_config_t uart_config{};
+	uart_config.baud_rate = 115200;
+	uart_config.data_bits = UART_DATA_8_BITS;
+	uart_config.parity = UART_PARITY_DISABLE;
+	uart_config.stop_bits = UART_STOP_BITS_1;
+	uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+
+	ESP_ERROR_CHECK(uart_param_config(UART_NUM_0, &uart_config));
+	ESP_ERROR_CHECK(uart_driver_install(UART_NUM_0, SOC_UART_FIFO_LEN + 1,
+		0, 0, nullptr, ESP_INTR_FLAG_LEVEL1));
+
+	uart_intr_config_t uart_int_config{};
+	uart_int_config.intr_enable_mask = UART_INTR_RXFIFO_FULL;
+	uart_int_config.rxfifo_full_thresh = 1;
+
+	ESP_ERROR_CHECK(uart_intr_config(UART_NUM_0, &uart_int_config));
+	ESP_ERROR_CHECK(uart_enable_rx_intr(UART_NUM_0));
 }
 
 void ui_network_join_interrupt_handler(void *arg) {
@@ -110,6 +135,16 @@ void UserInterface::set_led(RGBColour colour) {
 
 void UserInterface::attach(Device &device) {
 	device_ = &device;
+}
+
+void UserInterface::start() {
+	std::thread t;
+
+	make_thread(t, "ui_main", 4096, 1, &UserInterface::run_loop, this);
+	t.detach();
+
+	make_thread(t, "ui_uart", 4096, 1, &UserInterface::uart_handler, this);
+	t.detach();
 }
 
 unsigned long UserInterface::run_tasks() {
@@ -149,6 +184,31 @@ unsigned long UserInterface::run_tasks() {
 	}
 
 	return std::min(wait_ms, update_led());
+}
+
+void UserInterface::uart_handler() {
+	char buf[1];
+
+	while (true) {
+		if (uart_read_bytes(UART_NUM_0, buf, sizeof(buf), portMAX_DELAY) == 1) {
+			Device *device = device_;
+
+			if (buf[0] == '0') {
+				logging_.set_app_level(ESP_LOG_NONE);
+				logging_.set_sys_level(ESP_LOG_NONE);
+			} else if (buf[0] >= '1' && buf[0] <= '5') {
+				logging_.set_app_level(static_cast<esp_log_level_t>(buf[0] - '1' + 1));
+			} else if (buf[0] >= '6' && buf[0] <= '9') {
+				logging_.set_sys_level(static_cast<esp_log_level_t>(buf[0] - '6' + 1));
+			} else if (buf[0] == 'R') {
+				esp_restart();
+			} else if (device && buf[0] == 'j') {
+				device->network_do(ZigbeeAction::JOIN);
+			} else if (device && buf[0] == 'l') {
+				device->network_do(ZigbeeAction::LEAVE);
+			}
+		}
+	}
 }
 
 void UserInterface::start_event(Event event) {

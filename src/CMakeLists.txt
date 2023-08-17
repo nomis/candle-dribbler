@@ -2,6 +2,7 @@ idf_component_register(
     SRCS
 		device.cpp
 		light.cpp
+		log.cpp
 		main.cpp
 		thread.cpp
 		ui.cpp
