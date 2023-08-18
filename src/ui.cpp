@@ -19,6 +19,7 @@
 #include "nutt/ui.h"
 
 #include <esp_err.h>
+#include <esp_heap_caps.h>
 #include <esp_log.h>
 #include <esp_timer.h>
 #include <driver/gpio.h>
@@ -125,10 +126,10 @@ void UserInterface::start() {
 
 	button_debounce_.start(*this);
 
-	make_thread(t, "ui_main", 4096, 1, &UserInterface::run_loop, this);
+	make_thread(t, "ui_main", 4096, 2, &UserInterface::run_loop, this);
 	t.detach();
 
-	make_thread(t, "ui_uart", 4096, 1, &UserInterface::uart_handler, this);
+	make_thread(t, "ui_uart", 6144, 1, &UserInterface::uart_handler, this);
 	t.detach();
 }
 
@@ -166,6 +167,10 @@ void UserInterface::uart_handler() {
 				logging_.set_sys_level(static_cast<esp_log_level_t>(buf[0] - '6' + 1));
 			} else if (buf[0] == 'R') {
 				esp_restart();
+			} else if (buf[0] == 'm') {
+				print_memory();
+			} else if (buf[0] == 't') {
+				print_tasks();
 			} else if (device && buf[0] == 'j') {
 				device->network_do(ZigbeeAction::JOIN);
 			} else if (device && buf[0] == 'l') {
@@ -173,6 +178,31 @@ void UserInterface::uart_handler() {
 			}
 		}
 	}
+}
+
+void UserInterface::print_memory() {
+	size_t total_bytes = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+	size_t free_bytes = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+	size_t min_free_bytes = heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT);
+	size_t largest_free_block_bytes = heap_caps_get_largest_free_block(MALLOC_CAP_8BIT);
+
+	ESP_LOGI(TAG, "Total memory: %6zu", total_bytes);
+	ESP_LOGI(TAG, "Used memory:  %6zu", total_bytes - free_bytes);
+	ESP_LOGI(TAG, "Free memory:  %6zu", free_bytes);
+	ESP_LOGI(TAG, "              %6zu (minimum)", min_free_bytes);
+	ESP_LOGI(TAG, "              %6zu (largest block)", largest_free_block_bytes);
+}
+
+void UserInterface::print_tasks() {
+	std::vector<char> buffer(1024);
+
+	vTaskList(buffer.data());
+	ESP_LOGI(TAG, "Tasks:\r\n%-*s\tState\tPrio\tStack\tID\r\n%s",
+		configMAX_TASK_NAME_LEN - 1, "Name", buffer.data());
+
+	vTaskGetRunTimeStats(buffer.data());
+	ESP_LOGI(TAG, "Stats:\r\n%-*s\tRunning\t\tCPU%%\r\n%s",
+		configMAX_TASK_NAME_LEN - 1, "Name", buffer.data());
 }
 
 void UserInterface::start_event(Event event) {

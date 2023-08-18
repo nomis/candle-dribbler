@@ -124,6 +124,9 @@ private:
 	unsigned long run_tasks() override;
 	void uart_handler();
 
+	void print_memory();
+	void print_tasks();
+
 	void start_event(ui::Event event);
 	void restart_event(ui::Event event);
 	bool event_active(ui::Event event);

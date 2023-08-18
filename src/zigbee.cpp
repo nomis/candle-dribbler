@@ -93,7 +93,7 @@ void ZigbeeDevice::start() {
 	ESP_ERROR_CHECK(esp_zb_start(false));
 
 	std::thread t;
-	make_thread(t, "zigbee_main", 4096, 5, &ZigbeeDevice::run, this);
+	make_thread(t, "zigbee_main", 8192, 5, &ZigbeeDevice::run, this);
 	t.detach();
 }
 
