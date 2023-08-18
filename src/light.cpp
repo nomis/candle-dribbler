@@ -30,6 +30,7 @@
 #include <string>
 #include <thread>
 
+#include "nutt/debounce.h"
 #include "nutt/device.h"
 #include "nutt/ui.h"
 
@@ -43,20 +44,14 @@ std::unique_ptr<nvs::NVSHandle> Light::nvs_;
 
 Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		gpio_num_t relay_pin, bool relay_active_low) : index_(index),
-		switch_pin_(switch_pin), switch_active_low_(switch_active_low),
+		switch_debounce_(switch_pin, switch_active_low, DEBOUNCE_US),
 		relay_pin_(relay_pin), relay_active_low_(relay_active_low),
+		switch_active_(switch_debounce_.value()),
 		enable_(enable_nvs()),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
 		tertiary_ep_(*new light::TertiaryEndpoint{*this}),
 		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}) {
-	gpio_config_t switch_config = {
-		.pin_bit_mask = 1ULL << switch_pin_,
-		.mode = GPIO_MODE_INPUT,
-		.pull_up_en = GPIO_PULLUP_ENABLE,
-		.pull_down_en = GPIO_PULLDOWN_DISABLE,
-		.intr_type = GPIO_INTR_DISABLE,
-	};
 	gpio_config_t relay_config = {
 		.pin_bit_mask = 1ULL << relay_pin_,
 		.mode = GPIO_MODE_OUTPUT,
@@ -65,15 +60,10 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		.intr_type = GPIO_INTR_DISABLE,
 	};
 
-	ESP_ERROR_CHECK(gpio_config(&switch_config));
 	ESP_ERROR_CHECK(gpio_set_level(relay_pin_, relay_inactive()));
 	ESP_ERROR_CHECK(gpio_config(&relay_config));
 
-	switch_change_state_ = switch_state_ = gpio_get_level(switch_pin_);
-	switch_active_ = switch_state_ == switch_active();
 	ESP_LOGD(TAG, "Light %u switch is %d", index_, switch_active_);
-
-	ESP_ERROR_CHECK(gpio_isr_handler_add(switch_pin_, light_interrupt_handler, this));
 }
 
 bool Light::open_nvs() {
@@ -115,60 +105,24 @@ void Light::attach(Device &device) {
 		*new light::EnableEndpoint{*this},
 	});
 
-	ESP_ERROR_CHECK(gpio_set_intr_type(switch_pin_, GPIO_INTR_ANYEDGE));
-	ESP_ERROR_CHECK(gpio_intr_enable(switch_pin_));
+	switch_debounce_.start(device);
 }
 
 unsigned long Light::run() {
-	unsigned long wait_ms = ULONG_MAX;
-	unsigned long switch_change_count_copy = switch_change_count_irq_;
-	uint64_t now_us = esp_timer_get_time();
-	int level = gpio_get_level(switch_pin_);
+	DebounceResult debounce = switch_debounce_.run();
 
-	if (switch_change_count_ != switch_change_count_copy) {
-		switch_change_count_ = switch_change_count_copy;
-		switch_change_us_ = now_us;
-	}
+	if (debounce.changed) {
+		if (switch_debounce_.first()) {
+			std::lock_guard lock{mutex_};
 
-	if (switch_change_state_ != level) {
-		switch_change_state_ = level;
-		switch_change_us_ = now_us;
-	}
-
-	if (switch_first_run_) {
-		if (switch_change_us_ == 0) {
-			switch_change_us_ = now_us;
-		}
-
-		switch_state_ = !switch_change_state_;
-	}
-
-	if (switch_state_ != switch_change_state_) {
-		if (now_us - switch_change_us_ >= DEBOUNCE_US) {
-			switch_state_ = switch_change_state_;
-			switch_active_ = switch_state_ == switch_active();
-
-			if (switch_first_run_) {
-				request_refresh();
-				switch_first_run_ = false;
-			} else {
-				primary_switch(switch_active_, true);
-			}
+			switch_active_ = switch_debounce_.value();
+			request_refresh();
 		} else {
-			wait_ms = (DEBOUNCE_US - (now_us - switch_change_us_)) / 1000UL;
+			primary_switch(switch_debounce_.value(), true);
 		}
 	}
 
-	return wait_ms;
-}
-
-void light_interrupt_handler(void *arg) {
-	static_cast<Light*>(arg)->interrupt_handler();
-}
-
-void Light::interrupt_handler() {
-	switch_change_count_irq_++;
-	device_->wake_up_isr();
+	return debounce.wait_ms;
 }
 
 bool Light::primary_on() const {
@@ -205,11 +159,17 @@ void Light::primary_switch(bool state, bool local) {
 
 	ESP_LOGD(TAG, "Light %u set primary switch %d -> %d (%s)",
 		index_, primary_on_, state, local ? "local" : "remote");
+
 	primary_on_ = state;
+
+	if (local) {
+		switch_active_ = state;
+	}
 
 	if (!state) {
 		secondary_switch_locked(state, local);
 	}
+
 	update_state();
 	device_->ui().light_switched(local);
 }

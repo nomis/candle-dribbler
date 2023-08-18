@@ -33,6 +33,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "nutt/debounce.h"
 #include "nutt/device.h"
 #include "nutt/log.h"
 #include "nutt/zigbee.h"
@@ -71,7 +72,8 @@ using ui::RGBColour;
 
 UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
 		bool active_low) : WakeupThread("UI"), logging_(logging),
-		button_pin_(network_join_pin), button_active_low_(active_low) {
+		button_debounce_(network_join_pin, active_low, DEBOUNCE_PRESS_US,
+			DEBOUNCE_RELEASE_US) {
 	led_strip_config_t led_strip_config{};
 	led_strip_rmt_config_t rmt_config{};
 
@@ -84,18 +86,8 @@ UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
 	ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_strip_config, &rmt_config, &led_strip_));
 	set_led(colour::OFF);
 
-	gpio_config_t network_join_config = {
-		.pin_bit_mask = 1ULL << network_join_pin,
-		.mode = GPIO_MODE_INPUT,
-		.pull_up_en = GPIO_PULLUP_ENABLE,
-		.pull_down_en = GPIO_PULLDOWN_DISABLE,
-		.intr_type = GPIO_INTR_ANYEDGE,
-	};
-
-	ESP_ERROR_CHECK(gpio_config(&network_join_config));
 	ESP_ERROR_CHECK(uart_set_pin(UART_NUM_0, U0TXD_GPIO_NUM, U0RXD_GPIO_NUM,
 		UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-	ESP_ERROR_CHECK(gpio_isr_handler_add(network_join_pin, ui_network_join_interrupt_handler, this));
 
 	uart_config_t uart_config{};
 	uart_config.baud_rate = 115200;
@@ -116,15 +108,6 @@ UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
 	ESP_ERROR_CHECK(uart_enable_rx_intr(UART_NUM_0));
 }
 
-void ui_network_join_interrupt_handler(void *arg) {
-	static_cast<UserInterface*>(arg)->network_join_interrupt_handler();
-}
-
-void UserInterface::network_join_interrupt_handler() {
-	button_change_count_irq_++;
-	wake_up_isr();
-}
-
 void UserInterface::set_led(RGBColour colour) {
 	ESP_ERROR_CHECK(led_strip_set_pixel(led_strip_, 0,
 		colour.red * LED_LEVEL / 255,
@@ -140,6 +123,8 @@ void UserInterface::attach(Device &device) {
 void UserInterface::start() {
 	std::thread t;
 
+	button_debounce_.start(*this);
+
 	make_thread(t, "ui_main", 4096, 1, &UserInterface::run_loop, this);
 	t.detach();
 
@@ -148,42 +133,21 @@ void UserInterface::start() {
 }
 
 unsigned long UserInterface::run_tasks() {
-	unsigned long wait_ms = ULONG_MAX;
-	unsigned long button_change_count_copy = button_change_count_irq_;
-	uint64_t now_us = esp_timer_get_time();
-	int level = gpio_get_level(button_pin_);
+	DebounceResult debounce = button_debounce_.run();
 
-	if (button_change_count_ != button_change_count_copy) {
-		button_change_count_ = button_change_count_copy;
-		button_change_us_ = now_us;
-	}
+	if (debounce.changed
+			&& button_debounce_.value()
+			&& !button_debounce_.first()) {
+		Device *device = device_;
 
-	if (button_change_state_ != level) {
-		button_change_state_ = level;
-		button_change_us_ = now_us;
-	}
+		ESP_LOGI(TAG, "Network join/leave button pressed");
 
-	uint64_t debounce_us = button_change_state_ == button_active() ? DEBOUNCE_PRESS_US : DEBOUNCE_RELEASE_US;
-
-	if (button_state_ != button_change_state_) {
-		if (now_us - button_change_us_ >= debounce_us) {
-			Device *device = device_;
-
-			button_state_ = button_change_state_;
-
-			if (button_state_ == button_active()) {
-				ESP_LOGI(TAG, "Network join/leave button pressed");
-
-				if (device) {
-					device->network_do(ZigbeeAction::JOIN_OR_LEAVE);
-				}
-			}
-		} else {
-			wait_ms = (debounce_us - (now_us - button_change_us_)) / 1000UL;
+		if (device) {
+			device->network_do(ZigbeeAction::JOIN_OR_LEAVE);
 		}
 	}
 
-	return std::min(wait_ms, update_led());
+	return std::min(debounce.wait_ms, update_led());
 }
 
 void UserInterface::uart_handler() {

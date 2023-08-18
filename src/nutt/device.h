@@ -54,7 +54,6 @@ public:
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
 	void request_refresh();
-	using WakeupThread::wake_up_isr;
 
 	inline UserInterface& ui() { return ui_; };
 	void network_do(ZigbeeAction action);

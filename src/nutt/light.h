@@ -22,12 +22,12 @@
 #include <nvs_handle.hpp>
 #include <driver/gpio.h>
 
-#include <atomic>
 #include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
 
+#include "debounce.h"
 #include "device.h"
 #include "zigbee.h"
 
@@ -134,11 +134,7 @@ private:
 
 } // namespace light
 
-IRAM_ATTR void light_interrupt_handler(void *arg);
-
 class Light {
-	friend void light_interrupt_handler(void *arg);
-
 public:
 	Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		gpio_num_t relay_pin, bool relay_active_low);
@@ -169,24 +165,21 @@ public:
 	void refresh();
 
 private:
-	static constexpr const uint64_t DEBOUNCE_US = 20 * 1000;
+	static constexpr const unsigned long DEBOUNCE_US = 20 * 1000;
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 
 	bool open_nvs();
 	bool enable_nvs();
 	void enable_nvs(bool state);
-	IRAM_ATTR void interrupt_handler();
 
 	void secondary_switch_locked(bool state, bool local);
 	void update_state();
 
-	inline int switch_active() const { return switch_active_low_ ? 0 : 1; }
 	inline int relay_active() const { return relay_active_low_ ? 0 : 1; }
 	inline int relay_inactive() const { return relay_active_low_ ? 1 : 0; }
 
 	const size_t index_;
-	const gpio_num_t switch_pin_;
-	const bool switch_active_low_;
+	Debounce switch_debounce_;
 	const gpio_num_t relay_pin_;
 	const bool relay_active_low_;
 
@@ -194,16 +187,9 @@ private:
 	bool primary_on_{false};
 	bool secondary_on_{false};
 	bool tertiary_on_{false};
+	bool switch_active_;
 	bool enable_{true};
 	bool on_{false};
-
-	bool switch_first_run_{true};
-	int switch_change_state_;
-	uint64_t switch_change_us_{0};
-	int switch_state_;
-	unsigned long switch_change_count_{0};
-	std::atomic<unsigned long> switch_change_count_irq_{0};
-	bool switch_active_;
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;

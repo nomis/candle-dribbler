@@ -44,6 +44,8 @@ class WakeupThread {
 public:
 	static constexpr const char *TAG = "nutt.WakeupThread";
 
+	IRAM_ATTR void wake_up_isr();
+
 protected:
 	WakeupThread(const char *name);
 	~WakeupThread() = default;
@@ -51,7 +53,6 @@ protected:
 	virtual unsigned long run_tasks() = 0;
 	void run_loop();
 	void wake_up();
-	IRAM_ATTR void wake_up_isr();
 
 private:
 	static void wake_up_timer(void *arg);

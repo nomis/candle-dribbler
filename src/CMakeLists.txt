@@ -1,5 +1,6 @@
 idf_component_register(
     SRCS
+		debounce.cpp
 		device.cpp
 		light.cpp
 		log.cpp
