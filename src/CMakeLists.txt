@@ -18,6 +18,14 @@ idf_component_register(
 		pthread
 )
 
+execute_process(
+	WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+	OUTPUT_STRIP_TRAILING_WHITESPACE
+	ERROR_QUIET
+	OUTPUT_VARIABLE git_commit_time
+	COMMAND git log -n 1 --format=%ctUL
+)
+
 target_compile_options(
 	${COMPONENT_LIB}
 	PRIVATE
@@ -25,4 +33,5 @@ target_compile_options(
 		-Wextra
 		-Wshadow
 		-Werror
+		-DNUTT_GIT_COMMIT_TIME=${git_commit_time}+0UL
 )

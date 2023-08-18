@@ -107,7 +107,11 @@ private:
 	static constexpr const bool OTA_SUPPORTED = true;
 	static constexpr const uint16_t OTA_MANUFACTURER_ID = CONFIG_NUTT_OTA_MANUFACTURER_ID;
 	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = CONFIG_NUTT_OTA_IMAGE_TYPE_ID;
+# ifdef CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
+	static constexpr const uint32_t OTA_FILE_VERSION = static_cast<uint32_t>(NUTT_COMMIT_TIME);
+# else
 	static constexpr const uint32_t OTA_FILE_VERSION = CONFIG_NUTT_OTA_FILE_VERSION;
+# endif
 #else
 	static constexpr const bool OTA_SUPPORTED = false;
 	static constexpr const uint16_t OTA_MANUFACTURER_ID = 0;

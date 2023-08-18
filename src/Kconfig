@@ -54,10 +54,21 @@ if NUTT_SUPPORT_OTA
 			Configure image type ID (to uniquely identify this device model)
 			for OTA updates.
 
+    config NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
+		bool "Use Git commit timestamp as OTA file version"
+		default n
+		help
+			Configure the current file version (to identify which builds are
+			newer) automatically using the timestamp of the current Git commit.
+
+			This may go badly wrong while bisecting with older versions on a
+			network with an upgrade server.
+
 	config NUTT_OTA_FILE_VERSION
 		hex "File Version"
 		range 0x00000000 0xffffffff
 		default 0
+		depends on !NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
 		help
 			Configure the current file version (to identify which builds are
 			newer).
