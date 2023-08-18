@@ -188,6 +188,7 @@ private:
 	bool secondary_on_{false};
 	bool tertiary_on_{false};
 	bool switch_active_;
+	uint64_t switch_change_us_{0};
 	bool enable_{true};
 	bool on_{false};
 

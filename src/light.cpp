@@ -116,6 +116,7 @@ unsigned long Light::run() {
 			std::lock_guard lock{mutex_};
 
 			switch_active_ = switch_debounce_.value();
+			switch_change_us_ = esp_timer_get_time();
 			request_refresh();
 		} else {
 			primary_switch(switch_debounce_.value(), true);
@@ -163,7 +164,33 @@ void Light::primary_switch(bool state, bool local) {
 	primary_on_ = state;
 
 	if (local) {
-		switch_active_ = state;
+		if (switch_active_ != state) {
+			uint64_t now_us = esp_timer_get_time();
+			uint64_t elapsed_ms = (now_us - switch_change_us_) / 1000U;
+			unsigned long days = 0;
+			unsigned int hours, minutes, seconds, milliseconds;
+
+			days = elapsed_ms / (86400U * 1000U);
+			elapsed_ms %= 86400U * 1000U;
+
+			hours = elapsed_ms / (3600U * 1000U);
+			elapsed_ms %= 3600U * 1000U;
+
+			minutes = elapsed_ms / (60U * 1000U);
+			elapsed_ms %= 60U * 1000U;
+
+			seconds = elapsed_ms / 1000U;
+			elapsed_ms %= 1000U;
+
+			milliseconds = elapsed_ms;
+
+			ESP_LOGD(TAG, "Light %u switch was %s for %03lu+%02u:%02u:%02u.%03ums",
+				index_, switch_active_ ? "on" : "off", days, hours, minutes,
+				seconds, milliseconds);
+
+			switch_active_ = state;
+			switch_change_us_ = now_us;
+		}
 	}
 
 	if (!state) {
