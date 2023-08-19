@@ -24,6 +24,7 @@
 
 #include <memory>
 
+#include "nutt/main.h"
 #include "nutt/device.h"
 #include "nutt/light.h"
 #include "nutt/thread.h"
@@ -62,6 +63,7 @@ void Logging::set_app_level(esp_log_level_t level) {
 }
 
 void Logging::configure_app(esp_log_level_t level) {
+	esp_log_level_set(nutt::TAG, level);
 	esp_log_level_set(nutt::Device::TAG, level);
 	esp_log_level_set(nutt::Light::TAG, level);
 	esp_log_level_set(nutt::UserInterface::TAG, level);

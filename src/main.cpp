@@ -16,10 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nutt/main.h"
+
 #include <esp_err.h>
 #include <esp_log.h>
 #include <nvs_flash.h>
-#include <sdkconfig.h>
 #include <driver/gpio.h>
 
 #include "nutt/device.h"
@@ -28,10 +29,6 @@
 #include "nutt/ui.h"
 
 using namespace nutt;
-
-static constexpr const size_t MAX_LIGHTS = CONFIG_NUTT_MAX_LIGHTS;
-static constexpr const bool SWITCH_ACTIVE_LOW = CONFIG_NUTT_SWITCH_ACTIVE_LOW;
-static constexpr const bool RELAY_ACTIVE_LOW = CONFIG_NUTT_RELAY_ACTIVE_LOW;
 
 static_assert(nutt::Device::NUM_EP_PER_DEVICE + MAX_LIGHTS * nutt::Light::NUM_EP_PER_LIGHT <= ZB_MAX_EP_NUMBER,
 	"You'll need to ask Espressif to let you use more endpoints");
@@ -66,4 +63,9 @@ extern "C" void app_main() {
 
 	ui.attach(device);
 	ui.start();
+
+	TaskStatus_t status;
+
+	vTaskGetInfo(nullptr, &status, pdTRUE, eRunning);
+	ESP_LOGD(TAG, "Free stack: %lu", status.usStackHighWaterMark);
 }
