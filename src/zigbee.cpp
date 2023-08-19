@@ -268,7 +268,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		}
 
 		if (state_ != ZigbeeState::INIT) {
-			if (network_configured_ || state_ == ZigbeeState::CONNECTING) {
+			if (network_configured_ || state_ >= ZigbeeState::CONNECTING) {
 				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
 
 				if (status == ESP_OK) {
@@ -315,10 +315,13 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		} else {
 			ESP_LOGW(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;
-			ESP_LOGD(TAG, "Retry");
-			update_state(ZigbeeState::RETRY);
-			esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
-			esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+
+			if (network_configured_ || state_ >= ZigbeeState::CONNECTING) {
+				ESP_LOGD(TAG, "Retry");
+				update_state(ZigbeeState::RETRY);
+				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
+				esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+			}
 		}
 		break;
 
