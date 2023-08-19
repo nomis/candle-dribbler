@@ -18,6 +18,8 @@
 
 #pragma once
 
+#include <esp_zigbee_cluster.h>
+#include <esp_zigbee_type.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
 #include <driver/gpio.h>
@@ -37,7 +39,25 @@ class Light;
 
 namespace light {
 
-class PrimaryEndpoint: public ZigbeeEndpoint {
+class OnOffEndpoint: public ZigbeeEndpoint {
+protected:
+	OnOffEndpoint(Light &light, ep_id_t base_ep_id,
+		esp_zb_ha_standard_devices_t type, bool state);
+	~OnOffEndpoint() = default;
+
+	static constexpr const char *TAG = "nutt.Light";
+
+	void configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list);
+	void configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list);
+
+	Light &light_;
+	bool state_;
+
+private:
+	void configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list);
+};
+
+class PrimaryEndpoint: public OnOffEndpoint {
 public:
 	PrimaryEndpoint(Light &light);
 	~PrimaryEndpoint() = delete;
@@ -49,14 +69,10 @@ public:
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 10;
-
-	Light &light_;
-	bool state_;
 };
 
-class SecondaryEndpoint: public ZigbeeEndpoint {
+class SecondaryEndpoint: public OnOffEndpoint {
 public:
 	SecondaryEndpoint(Light &light);
 	~SecondaryEndpoint() = delete;
@@ -68,14 +84,10 @@ public:
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 20;
-
-	Light &light_;
-	bool state_;
 };
 
-class TertiaryEndpoint: public ZigbeeEndpoint {
+class TertiaryEndpoint: public OnOffEndpoint {
 public:
 	TertiaryEndpoint(Light &light);
 	~TertiaryEndpoint() = delete;
@@ -87,11 +99,7 @@ public:
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 30;
-
-	Light &light_;
-	bool state_;
 };
 
 class SwitchStatusEndpoint: public ZigbeeEndpoint {
@@ -114,7 +122,7 @@ private:
 	uint8_t state_;
 };
 
-class EnableEndpoint: public ZigbeeEndpoint {
+class EnableEndpoint: public OnOffEndpoint {
 public:
 	EnableEndpoint(Light &light);
 	~EnableEndpoint() = delete;
@@ -125,11 +133,7 @@ public:
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 70;
-
-	Light &light_;
-	bool state_;
 };
 
 } // namespace light

@@ -21,6 +21,8 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_timer.h>
+#include <esp_zigbee_cluster.h>
+#include <esp_zigbee_type.h>
 #include <nvs.h>
 #include <nvs_handle.hpp>
 #include <driver/gpio.h>
@@ -255,19 +257,48 @@ void Light::refresh() {
 
 namespace light {
 
-PrimaryEndpoint::PrimaryEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		light_(light), state_(light_.primary_on()) {
+OnOffEndpoint::OnOffEndpoint(Light &light, ep_id_t base_ep_id,
+		esp_zb_ha_standard_devices_t type, bool state)
+		: ZigbeeEndpoint(base_ep_id + light.index(),
+			ESP_ZB_AF_HA_PROFILE_ID, type),
+		light_(light), state_(state) {
 }
 
-void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t light_cfg = {
-		.on_off = state_,
-	};
+void OnOffEndpoint::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_on_off_cluster_cfg_t light_cfg{};
+	light_cfg.on_off = state_;
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+	configure_common_cluster_list(cluster_list);
+}
+
+void OnOffEndpoint::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_on_off_cluster_cfg_t switch_cfg{};
+	switch_cfg.on_off = state_;
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
+		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+	configure_common_cluster_list(cluster_list);
+}
+
+void OnOffEndpoint::configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_groups_cluster(&cluster_list,
+		esp_zb_groups_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_scenes_cluster(&cluster_list,
+		esp_zb_scenes_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+}
+
+PrimaryEndpoint::PrimaryEndpoint(Light &light)
+		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			light.primary_on()) {
+}
+
+void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	configure_light_cluster_list(cluster_list);
 }
 
 esp_err_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id,
@@ -302,18 +333,12 @@ void PrimaryEndpoint::refresh() {
 }
 
 SecondaryEndpoint::SecondaryEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		light_(light), state_(light_.secondary_on()) {
+		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			light.secondary_on()) {
 }
 
 void SecondaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t light_cfg = {
-		.on_off = state_,
-	};
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+	configure_light_cluster_list(cluster_list);
 }
 
 void SecondaryEndpoint::refresh() {
@@ -348,18 +373,12 @@ esp_err_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id,
 }
 
 TertiaryEndpoint::TertiaryEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		light_(light), state_(light_.tertiary_on()) {
+		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			light.tertiary_on()) {
 }
 
 void TertiaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t light_cfg = {
-		.on_off = state_,
-	};
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+	configure_light_cluster_list(cluster_list);
 }
 
 void TertiaryEndpoint::refresh() {
@@ -457,18 +476,12 @@ esp_err_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id,
 }
 
 EnableEndpoint::EnableEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID),
-		light_(light), state_(light_.enable()) {
+		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
+			light.enable()) {
 }
 
 void EnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	esp_zb_on_off_cluster_cfg_t switch_cfg = {
-		.on_off = state_,
-	};
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+	configure_switch_cluster_list(cluster_list);
 }
 
 esp_err_t EnableEndpoint::set_attr_value(uint16_t cluster_id,
