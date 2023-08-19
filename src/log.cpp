@@ -99,7 +99,7 @@ esp_log_level_t Logging::app_level_nvs() {
 		}
 	}
 
-	return default_level_;
+	return ESP_LOG_INFO;
 }
 
 void Logging::app_level_nvs(esp_log_level_t level) {

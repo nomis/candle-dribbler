@@ -284,7 +284,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
 				}
 			} else {
-				ESP_LOGD(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
+				ESP_LOGI(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
 				update_state(ZigbeeState::DISCONNECTED);
 			}
 		}
@@ -342,7 +342,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 					ESP_LOGE(TAG, "Device removed (type: %u)", params->leave_type);
 				}
 
-				ESP_LOGD(TAG, "Waiting for pairing button press");
+				ESP_LOGI(TAG, "Waiting for pairing button press");
 				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
 				update_state(ZigbeeState::DISCONNECTED, false);
 			}
