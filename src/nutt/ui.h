@@ -85,6 +85,7 @@ enum class Event {
 	LIGHT_SWITCHED_REMOTE,
 	LIGHT_SWITCHED_LOCAL,
 	OTA_UPDATE_OK,
+	CORE_DUMP_PRESENT,
 	NETWORK_CONNECT,
 	NETWORK_CONNECTED,
 	IDLE,
@@ -124,6 +125,9 @@ private:
 	unsigned long run_tasks() override;
 	void uart_handler();
 
+	void crash();
+	void print_core_dump(bool full);
+	void erase_core_dump();
 	void print_memory();
 	void print_tasks();
 

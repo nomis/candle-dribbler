@@ -18,9 +18,11 @@
 
 #include "nutt/ui.h"
 
+#include <esp_core_dump.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
+#include <esp_partition.h>
 #include <esp_timer.h>
 #include <driver/gpio.h>
 #include <driver/uart.h>
@@ -31,9 +33,11 @@
 #include <string.h>
 
 #include <bitset>
+#include <memory>
 #include <thread>
 #include <unordered_map>
 
+#include "nutt/base64.h"
 #include "nutt/debounce.h"
 #include "nutt/device.h"
 #include "nutt/log.h"
@@ -48,6 +52,11 @@ const std::unordered_map<Event,LEDSequence> UserInterface::led_sequences_{
 	{ Event::IDLE,                                 {    0, { { OFF, 0 }                     } } },
 	{ Event::NETWORK_CONNECT,                      { 8000, { { GREEN, 5000 }, { OFF, 0 }    } } },
 	{ Event::NETWORK_CONNECTED,                    {    0, { { GREEN, 250 }, { OFF, 2750 }  } } },
+	{ Event::CORE_DUMP_PRESENT,                    {    0, { { WHITE, 200 }, { RED, 200 },
+	                                                         { ORANGE, 200 }, { YELLOW, 200 },
+	                                                         { GREEN, 200 }, { CYAN, 200 },
+	                                                         { BLUE, 200 }, { MAGENTA, 200 }
+	                                                                                        } } },
 	{ Event::OTA_UPDATE_OK,                        {  500, { { CYAN, 0 }                    } } },
 	{ Event::LIGHT_SWITCHED_LOCAL,                 { 2000, { { ORANGE, 0 }                  } } },
 	{ Event::LIGHT_SWITCHED_REMOTE,                { 2000, { { BLUE, 0 }                    } } },
@@ -129,6 +138,13 @@ void UserInterface::start() {
 	make_thread(t, "ui_main", 4096, 2, &UserInterface::run_loop, this);
 	t.detach();
 
+	if (esp_core_dump_image_check() == ESP_OK) {
+		std::lock_guard lock{mutex_};
+
+		start_event(Event::CORE_DUMP_PRESENT);
+		wake_up();
+	}
+
 	make_thread(t, "ui_uart", 6144, 1, &UserInterface::uart_handler, this);
 	t.detach();
 }
@@ -165,18 +181,97 @@ void UserInterface::uart_handler() {
 				logging_.set_app_level(static_cast<esp_log_level_t>(buf[0] - '1' + 1));
 			} else if (buf[0] >= '6' && buf[0] <= '9') {
 				logging_.set_sys_level(static_cast<esp_log_level_t>(buf[0] - '6' + 1));
-			} else if (buf[0] == 'R') {
-				esp_restart();
-			} else if (buf[0] == 'm') {
-				print_memory();
-			} else if (buf[0] == 't') {
-				print_tasks();
+			} else if (buf[0] == 'C') {
+				crash();
+			} else if (buf[0] == 'd') {
+				print_core_dump(false);
+			} else if (buf[0] == 'D') {
+				print_core_dump(true);
+			} else if (buf[0] == 'E') {
+				erase_core_dump();
 			} else if (device && buf[0] == 'j') {
 				device->network_do(ZigbeeAction::JOIN);
 			} else if (device && buf[0] == 'l') {
 				device->network_do(ZigbeeAction::LEAVE);
+			} else if (buf[0] == 'm') {
+				print_memory();
+			} else if (buf[0] == 'R') {
+				esp_restart();
+			} else if (buf[0] == 't') {
+				print_tasks();
 			}
 		}
+	}
+}
+
+void UserInterface::crash() {
+	uint32_t now_us = esp_timer_get_time();
+	uint32_t *x = nullptr;
+	ESP_LOGE(TAG, "Crash at 0x%08" PRIx32, now_us);
+	*x = now_us;
+}
+
+void UserInterface::print_core_dump(bool full) {
+	esp_err_t err = esp_core_dump_image_check();
+
+	if (err == ESP_OK) {
+		if (full) {
+			const esp_partition_t *part = esp_partition_find_first(
+				ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+				nullptr);
+			uint32_t size;
+
+			if (esp_partition_read(part, 0, &size, sizeof(size)))
+				return;
+
+			vTaskPrioritySet(nullptr, 20);
+			printf("================= CORE DUMP START =================\n");
+			for (size_t offset = 0; offset < size; ) {
+				char data[48] = { 0 };
+				size_t remaining = std::min(static_cast<uint32_t>(sizeof(data)), size - offset);
+
+				if (esp_partition_read(part, offset, data, remaining))
+					break;
+
+				std::shared_ptr<char> buf(base64_encode(data, remaining, nullptr), free);
+				printf("%s", buf.get());
+
+				offset += sizeof(data);
+			}
+			printf("================= CORE DUMP END ===================\n");
+			vTaskPrioritySet(nullptr, 1);
+		} else {
+			std::shared_ptr<esp_core_dump_summary_t> summary(
+				static_cast<decltype(summary)::element_type*>(
+					calloc(1, sizeof(decltype(summary)::element_type))), free);
+
+			err = esp_core_dump_get_summary(summary.get());
+			if (err == ESP_OK) {
+				ESP_LOGI(TAG, "PC: %08" PRIx32, summary->exc_pc);
+				ESP_LOGI(TAG, "Task: %s", summary->exc_task);
+			}
+		}
+	} else if (err == ESP_ERR_NOT_FOUND) {
+		ESP_LOGI(TAG, "Core dump partition not found");
+	} else {
+		ESP_LOGI(TAG, "No core dump: %d", err);
+	}
+}
+
+void UserInterface::erase_core_dump() {
+	esp_err_t err = esp_core_dump_image_erase();
+
+	if (err == ESP_OK) {
+		ESP_LOGI(TAG, "Core dump erased");
+
+		std::lock_guard lock{mutex_};
+
+		stop_event(Event::CORE_DUMP_PRESENT);
+		wake_up();
+	} else if (err == ESP_ERR_NOT_FOUND) {
+		ESP_LOGI(TAG, "Core dump partition not found");
+	} else {
+		ESP_LOGI(TAG, "Core dump erase error: %d", err);
 	}
 }
 

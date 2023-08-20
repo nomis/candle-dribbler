@@ -1,5 +1,6 @@
 idf_component_register(
     SRCS
+		base64.cpp
 		debounce.cpp
 		device.cpp
 		light.cpp
@@ -12,6 +13,7 @@ idf_component_register(
     REQUIRES
 		app_update
 		driver
+		espcoredump
 		esp_timer
 		freertos
 		nvs_flash
