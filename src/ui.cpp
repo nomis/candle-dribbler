@@ -68,7 +68,7 @@ const std::unordered_map<Event,LEDSequence> UserInterface::led_sequences_{
 	{ Event::NETWORK_CONFIGURED_CONNECTING,        {    0, { { YELLOW, 250 }, { OFF, 250 }  } } },
 	{ Event::NETWORK_ERROR,                        { 1000, { { RED, 250 }, { OFF, 250 }     } } },
 	{ Event::NETWORK_CONFIGURED_FAILED,            {    0, { { RED, 0 }                     } } },
-	{ Event::NETWORK_UNCONFIGURED_FAILED,          {    0, { { RED, 0 }, { OFF, 500 }       } } },
+	{ Event::NETWORK_UNCONFIGURED_FAILED,          {    0, { { RED, 500 }, { OFF, 500 }     } } },
 };
 
 } // namespace nutt
