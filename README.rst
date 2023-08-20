@@ -26,8 +26,9 @@ Work in progress.
 Usage
 -----
 
-Connect GPIO4 to GND to join/leave the Zigbee network. Joining a new network is
-not performed automatically. Leaving the network currently requires a restart.
+Use a push button on GPIO4 to GND (or use the UART command) to join/leave the
+Zigbee network. Joining a new network is not performed automatically. Leaving
+the network currently requires a restart.
 
 Each physical light has a switch GPIO and a relay GPIO and presents the
 following Zigbee endpoints:
@@ -72,6 +73,77 @@ a useful record of activity if that is a motion detector).
 The power on state is all lights off. The **Enable Switch** setting is stored in
 flash so it's persistent.
 
+LED Events
+~~~~~~~~~~
+
+.. list-table::
+   :widths: 50 50
+   :header-rows: 1
+
+   * - Colours
+     - Description
+   * - White
+     - Disconnected (network not configured)
+   * - White (blinking)
+     - Connecting (network not configured)
+   * - Yellow
+     - Disconnected (network configured)
+   * - Yellow (blinking)
+     - Connecting (network configured)
+   * - Green (constant then blinking every 3 seconds)
+     - Network connected
+   * - Red (blinking 2 times for 1 second)
+     - Network error
+   * - Red
+     - Network failed (network configured)
+   * - Red (blinking)
+     - Network failed (network not configured)
+   * - Orange (for 2 seconds)
+     - Light switched locally
+   * - Blue (for 2 seconds)
+     - Light switched remotely
+   * - Magenta
+     - Identify request received
+   * - Cyan
+     - OTA update in progress
+   * - Red (blinking 8 times in 3 seconds)
+     - OTA update error
+   * - Rainbow (cycling)
+     - Core dump preset
+
+UART Commands
+~~~~~~~~~~~~~
+
+.. list-table::
+   :widths: 15 85
+   :header-rows: 1
+
+   * - Keys
+     - Description
+   * - ``0``
+     - Disable logging (persistent)
+   * - ``1``\ ..\ ``5``
+     - Set application log level to ERROR..VERBOSE (persistent)
+   * - ``6``\ ..\ ``9``
+     - Set system log level to ERROR..DEBUG (persistent)
+   * - ``j``
+     - Join Zigbee network (no effect if already joined/joining)
+   * - ``l``
+     - Leave Zigbee network (no effect if already left)
+   * - ``m``
+     - Print memory information
+   * - ``t``
+     - Print task list and stats
+   * - ``R``
+     - Restart
+   * - ``C``
+     - Crash (used for testing to generate a core dump)
+   * - ``d``
+     - Print brief core dump summary
+   * - ``D``
+     - Print whole core dump
+   * - ``E``
+     - Erase saved core dump
 
 Build
 -----
