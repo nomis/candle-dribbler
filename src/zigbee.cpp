@@ -20,6 +20,7 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_mac.h>
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
 
@@ -40,6 +41,11 @@ extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 namespace nutt {
 
 ZigbeeDevice *ZigbeeDevice::instance_{nullptr};
+
+template<size_t Size>
+static bool all_zeros(const uint8_t (&buf)[Size]) {
+	return buf[0] == 0 && !std::memcmp(&buf[0], &buf[1], Size - 1);
+}
 
 ZigbeeString::ZigbeeString(const std::string_view text, size_t max_length) {
 	size_t length = std::min(text.length(), std::min(max_length, MAX_LENGTH));
@@ -254,10 +260,26 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		if (status == ESP_OK) {
 			if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
 				ESP_LOGD(TAG, "Zigbee stack initialized");
-				uint16_t address = esp_zb_get_short_address();
+				uint16_t short_address = esp_zb_get_short_address();
+				esp_zb_ieee_addr_t long_address;
+				esp_zb_get_long_address(long_address);
 
-				update_state(ZigbeeState::DISCONNECTED, address < 0xFFF8);
-				ESP_LOGI(TAG, "Device address: 0x%04x (network %sconfigured)", address, network_configured_ ? "" : "not ");
+				/*
+				 * If the address has not been set using the zb_fct partition it
+				 * will be all zeros at startup. Workaround a bug that reverses
+				 * the byte order when automatically using the built-in address.
+				 *
+				 * Workaround for https://github.com/espressif/esp-zigbee-sdk/issues/71
+				 */
+				if (all_zeros(long_address)) {
+					esp_read_mac(long_address, ESP_MAC_IEEE802154);
+					std::reverse(std::begin(long_address), std::end(long_address));
+					esp_zb_set_long_address(long_address);
+				}
+
+				update_state(ZigbeeState::DISCONNECTED, short_address < 0xFFF8);
+				ESP_LOGI(TAG, "Device address: 0x%04x (network %sconfigured)",
+					short_address, network_configured_ ? "" : "not ");
 			}
 		} else if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
 			ESP_LOGE(TAG, "Failed to initialize Zigbee stack (status: %d)", status);
@@ -299,9 +321,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 			if (state_ == ZigbeeState::DISCONNECTED
 					&& short_address == 0xfffe && pan_id == 0xffff
-					&& extended_pan_id[0] == 0
-					&& !std::memcmp(&extended_pan_id[0], &extended_pan_id[1],
-						sizeof(extended_pan_id) - sizeof(extended_pan_id[0]))) {
+					&& all_zeros(extended_pan_id)) {
 				/* Workaround false join event when leaving while connecting */
 				ESP_LOGW(TAG, "Ignoring invalid join signal");
 				break;
