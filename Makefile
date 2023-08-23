@@ -1,4 +1,4 @@
-.PHONY: all target config build clean flash erase-ota app-flash monitor
+.PHONY: all target config build clean flash erase-ota app-flash monitor cppcheck
 
 all: build
 
@@ -25,3 +25,8 @@ app-flash: build
 
 monitor:
 	idf.py monitor --timestamps --timestamp-format "%Y-%m-%d %H:%M:%S.%f" --no-reset
+
+cppcheck:
+	cppcheck --enable=all --suppress=unusedFunction --suppress=useStlAlgorithm \
+		--suppress=knownConditionTrueFalse --suppress=missingIncludeSystem \
+		--suppress=internalAstError --inline-suppr -I src/ src/*.cpp

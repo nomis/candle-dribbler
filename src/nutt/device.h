@@ -42,9 +42,10 @@ class SoftwareEndpoint;
 
 class Device: public WakeupThread, public ZigbeeListener {
 public:
-	Device(UserInterface &ui);
+	explicit Device(UserInterface &ui);
 	~Device() = delete;
 
+	// cppcheck-suppress duplInheritedMember
 	static constexpr const char *TAG = "nutt.Device";
 	/* Assumes 2 OTA partitions are configured */
 	static constexpr const size_t NUM_EP_PER_DEVICE = 3;

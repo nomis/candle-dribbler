@@ -28,8 +28,8 @@
 
 namespace nutt {
 
-WakeupThread::WakeupThread(const char *name) : name_(name) {
-	semaphore_ = xSemaphoreCreateBinary();
+WakeupThread::WakeupThread(const char *name) : name_(name),
+		semaphore_(xSemaphoreCreateBinary()) {
 	if (!semaphore_) {
 		ESP_LOGE(TAG, "Semaphore create for %s failed", name_);
 		esp_restart();

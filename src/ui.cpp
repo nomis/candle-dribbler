@@ -208,6 +208,7 @@ void UserInterface::crash() {
 	uint32_t now_us = esp_timer_get_time();
 	uint32_t *x = nullptr;
 	ESP_LOGE(TAG, "Crash at 0x%08" PRIx32, now_us);
+	// cppcheck-suppress nullPointer
 	*x = now_us;
 }
 
@@ -377,7 +378,7 @@ unsigned long UserInterface::update_led() {
 		start_event(event);
 	}
 
-	auto &sequence = active_sequence_[event];
+	const auto &sequence = active_sequence_[event];
 
 	if (sequence.states[0].duration_ms) {
 		wait_ms = std::min(static_cast<unsigned long>(sequence.states[0].remaining_us / 1000UL), ULONG_MAX - 1);

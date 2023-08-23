@@ -103,7 +103,7 @@ class ZigbeeDevice {
 	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
-	ZigbeeDevice(ZigbeeListener &listener);
+	explicit ZigbeeDevice(ZigbeeListener &listener);
 	~ZigbeeDevice() = delete;
 
 	static constexpr const char *TAG = "nutt.ZigbeeDevice";

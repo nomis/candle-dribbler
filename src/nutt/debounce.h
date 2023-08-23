@@ -51,8 +51,8 @@ public:
 
 private:
 	inline int active() const { return active_low_ ? 0 : 1; }
-	inline int inactive() const { return active_low_ ? 1 : 0; }
 
+	// cppcheck-suppress unusedPrivateFunction
 	IRAM_ATTR void interrupt_handler();
 
 	WakeupThread *wakeup_{nullptr};

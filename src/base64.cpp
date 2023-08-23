@@ -85,7 +85,7 @@ static char * base64_gen_encode(const unsigned char *src, size_t len,
 static unsigned char * base64_gen_decode(const char *src, size_t len,
 					 size_t *out_len, const char *table)
 {
-	unsigned char dtable[256], *out, *pos, block[4], tmp;
+	unsigned char dtable[256], *out, *pos, block[4];
 	size_t i, count, olen;
 	int pad = 0;
 	size_t extra_pad;
@@ -112,7 +112,7 @@ static unsigned char * base64_gen_decode(const char *src, size_t len,
 
 	count = 0;
 	for (i = 0; i < len + extra_pad; i++) {
-		unsigned char val;
+		unsigned char val, tmp;
 
 		if (i >= len)
 			val = '=';

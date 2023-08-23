@@ -59,7 +59,7 @@ private:
 
 class PrimaryEndpoint: public OnOffEndpoint {
 public:
-	PrimaryEndpoint(Light &light);
+	explicit PrimaryEndpoint(Light &light);
 	~PrimaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
@@ -74,7 +74,7 @@ private:
 
 class SecondaryEndpoint: public OnOffEndpoint {
 public:
-	SecondaryEndpoint(Light &light);
+	explicit SecondaryEndpoint(Light &light);
 	~SecondaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
@@ -89,7 +89,7 @@ private:
 
 class TertiaryEndpoint: public OnOffEndpoint {
 public:
-	TertiaryEndpoint(Light &light);
+	explicit TertiaryEndpoint(Light &light);
 	~TertiaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
@@ -104,7 +104,7 @@ private:
 
 class SwitchStatusEndpoint: public ZigbeeEndpoint {
 public:
-	SwitchStatusEndpoint(Light &light);
+	explicit SwitchStatusEndpoint(Light &light);
 	~SwitchStatusEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
@@ -124,7 +124,7 @@ private:
 
 class EnableEndpoint: public OnOffEndpoint {
 public:
-	EnableEndpoint(Light &light);
+	explicit EnableEndpoint(Light &light);
 	~EnableEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;

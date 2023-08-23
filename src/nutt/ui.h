@@ -105,6 +105,7 @@ public:
 	UserInterface(Logging &logging, gpio_num_t network_join_pin, bool active_low);
 	~UserInterface() = delete;
 
+	// cppcheck-suppress duplInheritedMember
 	static constexpr const char *TAG = "nutt.UI";
 
 	void attach(Device &device);

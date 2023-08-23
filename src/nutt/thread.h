@@ -58,7 +58,7 @@ private:
 	static void wake_up_timer(void *arg);
 
 	const char *name_;
-	SemaphoreHandle_t semaphore_{nullptr};
+	const SemaphoreHandle_t semaphore_;
 	esp_timer_handle_t timer_{nullptr};
 };
 
