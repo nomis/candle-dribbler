@@ -266,19 +266,16 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 
 				/*
 				 * If the address has not been set using the zb_fct partition it
-				 * will be all zeros at startup. Workaround a bug that reverses
-				 * the byte order when automatically using the built-in address.
-				 *
-				 * Workaround for https://github.com/espressif/esp-zigbee-sdk/issues/71
+				 * will be all zeros at startup.
 				 */
 				if (all_zeros(long_address)) {
 					esp_read_mac(long_address, ESP_MAC_IEEE802154);
 					std::reverse(std::begin(long_address), std::end(long_address));
-					esp_zb_set_long_address(long_address);
 				}
 
 				update_state(ZigbeeState::DISCONNECTED, short_address < 0xFFF8);
-				ESP_LOGI(TAG, "Device address: 0x%04x (network %sconfigured)",
+				ESP_LOGI(TAG, "Device address: %s/0x%04x (network %sconfigured)",
+					zigbee_address_string(long_address).c_str(),
 					short_address, network_configured_ ? "" : "not ");
 			}
 		} else if (type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP) {
