@@ -122,10 +122,25 @@ private:
 	uint8_t state_;
 };
 
-class EnableEndpoint: public OnOffEndpoint {
+class TemporaryEnableEndpoint: public OnOffEndpoint {
 public:
-	explicit EnableEndpoint(Light &light);
-	~EnableEndpoint() = delete;
+	explicit TemporaryEnableEndpoint(Light &light);
+	~TemporaryEnableEndpoint() = delete;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+
+	void refresh();
+	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *value) override;
+
+private:
+	static constexpr const ep_id_t BASE_EP_ID = 70;
+};
+
+class PersistentEnableEndpoint: public OnOffEndpoint {
+public:
+	explicit PersistentEnableEndpoint(Light &light);
+	~PersistentEnableEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
@@ -133,7 +148,7 @@ public:
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 private:
-	static constexpr const ep_id_t BASE_EP_ID = 70;
+	static constexpr const ep_id_t BASE_EP_ID = 80;
 };
 
 } // namespace light
@@ -145,7 +160,7 @@ public:
 	~Light() = delete;
 
 	static constexpr const char *TAG = "nutt.Light";
-	static constexpr const size_t NUM_EP_PER_LIGHT = 5;
+	static constexpr const size_t NUM_EP_PER_LIGHT = 6;
 
 	inline size_t index() const { return index_; }
 
@@ -157,13 +172,15 @@ public:
 	bool secondary_on() const;
 	bool tertiary_on() const;
 	bool switch_on() const;
-	bool enable() const;
+	bool temporary_enable() const;
+	bool persistent_enable() const;
 	bool on() const;
 
 	void primary_switch(bool state, bool local);
 	void secondary_switch(bool state, bool local);
 	void tertiary_switch(bool state);
-	void enable(bool state);
+	void temporary_enable(bool state);
+	void persistent_enable(bool state);
 
 	void request_refresh();
 	void refresh();
@@ -193,13 +210,15 @@ private:
 	bool tertiary_on_{false};
 	bool switch_active_;
 	uint64_t switch_change_us_{0};
-	bool enable_{true};
+	bool persistent_enable_{true};
+	bool temporary_enable_{true};
 	bool on_{false};
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;
 	light::TertiaryEndpoint &tertiary_ep_;
 	light::SwitchStatusEndpoint &switch_status_ep_;
+	light::TemporaryEnableEndpoint &temporary_enable_ep_;
 
 	Device *device_{nullptr};
 };
