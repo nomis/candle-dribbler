@@ -42,7 +42,7 @@ Debounce::Debounce(gpio_num_t pin, bool active_low,
 	};
 
 	ESP_ERROR_CHECK(gpio_config(&config));
-	change_state_ = state_ = gpio_get_level(pin_);
+	change_state_ = (state_ = gpio_get_level(pin_));
 	ESP_ERROR_CHECK(gpio_isr_handler_add(pin_, debounce_interrupt_handler, this));
 }
 

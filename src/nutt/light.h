@@ -39,113 +39,125 @@ class Light;
 
 namespace light {
 
-class OnOffEndpoint: public ZigbeeEndpoint {
+class BooleanEndpoint: public ZigbeeEndpoint {
 protected:
-	OnOffEndpoint(Light &light, ep_id_t base_ep_id,
-		esp_zb_ha_standard_devices_t type, bool state);
-	~OnOffEndpoint() = default;
+	BooleanEndpoint(Light &light, const char *name, ep_id_t base_ep_id,
+		esp_zb_ha_standard_devices_t type, uint16_t cluster_id,
+		uint16_t attr_id);
+	~BooleanEndpoint() = default;
 
 	static constexpr const char *TAG = "nutt.Light";
 
 	void configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list);
 	void configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list);
+	void configure_binary_input_cluster_list(esp_zb_cluster_list_t &cluster_list);
+	virtual bool refresh_value() = 0;
+	virtual void updated_value(bool value) = 0;
 
+public:
+	void refresh();
+	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *value) override;
+
+protected:
 	Light &light_;
-	bool state_;
 
 private:
 	void configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list);
+
+	static uint32_t app_type_;
+
+	const char *name_;
+	const uint16_t cluster_id_;
+	const uint16_t attr_id_;
+	uint8_t state_;
 };
 
-class PrimaryEndpoint: public OnOffEndpoint {
+class PrimaryEndpoint: public BooleanEndpoint {
 public:
 	explicit PrimaryEndpoint(Light &light);
 	~PrimaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 10;
 };
 
-class SecondaryEndpoint: public OnOffEndpoint {
+class SecondaryEndpoint: public BooleanEndpoint {
 public:
 	explicit SecondaryEndpoint(Light &light);
 	~SecondaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 20;
 };
 
-class TertiaryEndpoint: public OnOffEndpoint {
+class TertiaryEndpoint: public BooleanEndpoint {
 public:
 	explicit TertiaryEndpoint(Light &light);
 	~TertiaryEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 30;
 };
 
-class SwitchStatusEndpoint: public ZigbeeEndpoint {
+class SwitchStatusEndpoint: public BooleanEndpoint {
 public:
 	explicit SwitchStatusEndpoint(Light &light);
 	~SwitchStatusEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
-	static constexpr const char *TAG = "nutt.Light";
 	static constexpr const ep_id_t BASE_EP_ID = 60;
-	static uint32_t type_;
-
-	Light &light_;
-	uint8_t state_;
 };
 
-class TemporaryEnableEndpoint: public OnOffEndpoint {
+class TemporaryEnableEndpoint: public BooleanEndpoint {
 public:
 	explicit TemporaryEnableEndpoint(Light &light);
 	~TemporaryEnableEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 70;
 };
 
-class PersistentEnableEndpoint: public OnOffEndpoint {
+class PersistentEnableEndpoint: public BooleanEndpoint {
 public:
 	explicit PersistentEnableEndpoint(Light &light);
 	~PersistentEnableEndpoint() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
+protected:
+	bool refresh_value() override;
+	void updated_value(bool value) override;
 
 private:
 	static constexpr const ep_id_t BASE_EP_ID = 80;

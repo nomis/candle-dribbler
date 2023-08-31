@@ -37,7 +37,7 @@
 #include "nutt/ui.h"
 
 #ifndef ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID
-# define ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID 0x0103
+# define ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID (static_cast<esp_zb_ha_standard_devices_t>(0x0103))
 #endif
 
 namespace nutt {
@@ -279,16 +279,17 @@ void Light::refresh() {
 
 namespace light {
 
-OnOffEndpoint::OnOffEndpoint(Light &light, ep_id_t base_ep_id,
-		esp_zb_ha_standard_devices_t type, bool state)
-		: ZigbeeEndpoint(base_ep_id + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, type),
-		light_(light), state_(state) {
+BooleanEndpoint::BooleanEndpoint(Light &light, const char *name,
+		ep_id_t base_ep_id, esp_zb_ha_standard_devices_t type,
+		uint16_t cluster_id, uint16_t attr_id)
+		: ZigbeeEndpoint(base_ep_id + light.index(), ESP_ZB_AF_HA_PROFILE_ID,
+			type),
+		light_(light), name_(name), cluster_id_(cluster_id), attr_id_(attr_id) {
 }
 
-void OnOffEndpoint::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BooleanEndpoint::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t light_cfg{};
-	light_cfg.on_off = state_;
+	light_cfg.on_off = (state_ = refresh_value());
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -296,9 +297,9 @@ void OnOffEndpoint::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_
 	configure_common_cluster_list(cluster_list);
 }
 
-void OnOffEndpoint::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BooleanEndpoint::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg{};
-	switch_cfg.on_off = state_;
+	switch_cfg.on_off = (state_ = refresh_value());
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
@@ -306,147 +307,13 @@ void OnOffEndpoint::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster
 	configure_common_cluster_list(cluster_list);
 }
 
-void OnOffEndpoint::configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_groups_cluster(&cluster_list,
-		esp_zb_groups_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_scenes_cluster(&cluster_list,
-		esp_zb_scenes_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-}
-
-PrimaryEndpoint::PrimaryEndpoint(Light &light)
-		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			light.primary_on()) {
-}
-
-void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	configure_light_cluster_list(cluster_list);
-}
-
-esp_err_t PrimaryEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.primary_switch(state_, false);
-				return ESP_OK;
-			}
-		}
-	}
-	return ESP_ERR_INVALID_ARG;
-}
-
-void PrimaryEndpoint::refresh() {
-	bool new_state = light_.primary_on();
-
-	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
-
-		ESP_LOGD(TAG, "Light %u report primary switch %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
-		state_ = new_state;
-	}
-}
-
-SecondaryEndpoint::SecondaryEndpoint(Light &light)
-		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			light.secondary_on()) {
-}
-
-void SecondaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	configure_light_cluster_list(cluster_list);
-}
-
-void SecondaryEndpoint::refresh() {
-	bool new_state = light_.secondary_on();
-
-	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
-
-		ESP_LOGD(TAG, "Light %u report secondary switch %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
-		state_ = new_state;
-	}
-}
-
-esp_err_t SecondaryEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.secondary_switch(state_, false);
-				return ESP_OK;
-			}
-		}
-	}
-	return ESP_ERR_INVALID_ARG;
-}
-
-TertiaryEndpoint::TertiaryEndpoint(Light &light)
-		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			light.tertiary_on()) {
-}
-
-void TertiaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	configure_light_cluster_list(cluster_list);
-}
-
-void TertiaryEndpoint::refresh() {
-	bool new_state = light_.tertiary_on();
-
-	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
-
-		ESP_LOGD(TAG, "Light %u report tertiary switch %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
-		state_ = new_state;
-	}
-}
-
-esp_err_t TertiaryEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.tertiary_switch(state_);
-				return ESP_OK;
-			}
-		}
-	}
-	return ESP_ERR_INVALID_ARG;
-}
-
-uint32_t SwitchStatusEndpoint::type_{
+uint32_t BooleanEndpoint::app_type_{
 	  (  0x03 << 24)  /* Group: Binary Input            */
 	| (  0x00 << 16)  /* Type:  Application Domain HVAC */
 	|  0x004B         /* Index: Lighting Status BI      */
 };
 
-SwitchStatusEndpoint::SwitchStatusEndpoint(Light &light)
-		: ZigbeeEndpoint(BASE_EP_ID + light.index(),
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID),
-		light_(light), state_(light_.switch_on() ? 1 : 0) {
-}
-
-void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BooleanEndpoint::configure_binary_input_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_binary_input_cluster_cfg_t input_cfg = {
 		.out_of_service = 0,
 		.status_flags = 0,
@@ -454,11 +321,13 @@ void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster
 
 	esp_zb_attribute_list_t *input_cluster = esp_zb_binary_input_cluster_create(&input_cfg);
 
+	state_ = refresh_value() ? 1 : 0;
+
 	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
 			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &state_));
 
 	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
-			ESP_ZB_ZCL_ATTR_BINARY_INPUT_APPLICATION_TYPE_ID, &type_));
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_APPLICATION_TYPE_ID, &app_type_));
 
 	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
 			ESP_ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID,
@@ -468,28 +337,34 @@ void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster
 		input_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
 }
 
-void SwitchStatusEndpoint::refresh() {
-	uint8_t new_state = light_.switch_on() ? 1 : 0;
+void BooleanEndpoint::configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_groups_cluster(&cluster_list,
+		esp_zb_groups_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_scenes_cluster(&cluster_list,
+		esp_zb_scenes_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+}
+
+void BooleanEndpoint::refresh() {
+	uint8_t new_state = refresh_value() ? 1 : 0;
 
 	if (new_state != state_) {
-		ESP_LOGD(TAG, "Light %u report switch state %u", light_.index(), new_state);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID,
-			&new_state);
 		state_ = new_state;
+		ESP_LOGD(TAG, "Light %u report %s %u", light_.index(), name_, state_);
+
+		update_attr_value(cluster_id_, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attr_id_,
+			&state_);
 	}
 }
 
-esp_err_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id,
+esp_err_t BooleanEndpoint::set_attr_value(uint16_t cluster_id,
 		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+	if (cluster_id == cluster_id_) {
+		if (attr_id == attr_id_) {
 			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
 					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.request_refresh();
+				state_ = *(uint8_t *)data->value;
+				updated_value(state_);
 				return ESP_OK;
 			}
 		}
@@ -497,68 +372,118 @@ esp_err_t SwitchStatusEndpoint::set_attr_value(uint16_t cluster_id,
 	return ESP_ERR_INVALID_ARG;
 }
 
+PrimaryEndpoint::PrimaryEndpoint(Light &light)
+		: BooleanEndpoint(light, "primary switch", BASE_EP_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+}
+
+void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	configure_light_cluster_list(cluster_list);
+}
+
+bool PrimaryEndpoint::refresh_value() {
+	return light_.primary_on();
+}
+
+void PrimaryEndpoint::updated_value(bool state) {
+	light_.primary_switch(state, false);
+}
+
+SecondaryEndpoint::SecondaryEndpoint(Light &light)
+		: BooleanEndpoint(light, "secondary switch", BASE_EP_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+}
+
+void SecondaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	configure_light_cluster_list(cluster_list);
+}
+
+bool SecondaryEndpoint::refresh_value() {
+	return light_.secondary_on();
+}
+
+void SecondaryEndpoint::updated_value(bool state) {
+	light_.secondary_switch(state, false);
+}
+
+TertiaryEndpoint::TertiaryEndpoint(Light &light)
+		: BooleanEndpoint(light, "tertiary switch", BASE_EP_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+}
+
+void TertiaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	configure_light_cluster_list(cluster_list);
+}
+
+bool TertiaryEndpoint::refresh_value() {
+	return light_.tertiary_on();
+}
+
+void TertiaryEndpoint::updated_value(bool state) {
+	light_.tertiary_switch(state);
+}
+
+SwitchStatusEndpoint::SwitchStatusEndpoint(Light &light)
+		: BooleanEndpoint(light, "switch state", BASE_EP_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
+			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID) {
+}
+
+void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	configure_binary_input_cluster_list(cluster_list);
+}
+
+bool SwitchStatusEndpoint::refresh_value() {
+	return light_.switch_on();
+}
+
+void SwitchStatusEndpoint::updated_value(bool state) {
+	light_.refresh();
+}
+
 TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
-		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
-			light.temporary_enable()) {
+		: BooleanEndpoint(light, "temporary enable", BASE_EP_ID,
+			ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
 void TemporaryEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_switch_cluster_list(cluster_list);
 }
 
-void TemporaryEnableEndpoint::refresh() {
-	bool new_state = light_.temporary_enable();
-
-	if (new_state != state_) {
-		uint8_t value = new_state ? 1 : 0;
-
-		ESP_LOGD(TAG, "Light %u report temporary enable %u", light_.index(), value);
-
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-			&value);
-		state_ = new_state;
-	}
+bool TemporaryEnableEndpoint::refresh_value() {
+	return light_.temporary_enable();
 }
 
-esp_err_t TemporaryEnableEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.temporary_enable(state_);
-				return ESP_OK;
-			}
-		}
-	}
-	return ESP_ERR_INVALID_ARG;
+void TemporaryEnableEndpoint::updated_value(bool state) {
+	light_.temporary_enable(state);
 }
 
 PersistentEnableEndpoint::PersistentEnableEndpoint(Light &light)
-		: OnOffEndpoint(light, BASE_EP_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
-			light.persistent_enable()) {
+		: BooleanEndpoint(light, "persistent enable", BASE_EP_ID,
+			ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
 void PersistentEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_switch_cluster_list(cluster_list);
 }
 
-esp_err_t PersistentEnableEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_ON_OFF) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value != 0;
-				light_.persistent_enable(state_);
-				return ESP_OK;
-			}
-		}
-	}
-	return ESP_ERR_INVALID_ARG;
+bool PersistentEnableEndpoint::refresh_value() {
+	return light_.persistent_enable();
+}
+
+void PersistentEnableEndpoint::updated_value(bool state) {
+	light_.persistent_enable(state);
 }
 
 } // namespace light
