@@ -319,7 +319,10 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 			if (state_ == ZigbeeState::DISCONNECTED
 					&& short_address == 0xfffe && pan_id == 0xffff
 					&& all_zeros(extended_pan_id)) {
-				/* Workaround false join event when leaving while connecting */
+				/*
+				 * Workaround false join event when leaving while connecting
+				 * https://github.com/espressif/esp-zigbee-sdk/issues/66#issuecomment-1679527878
+				 */
 				ESP_LOGW(TAG, "Ignoring invalid join signal");
 				break;
 			}
@@ -459,3 +462,45 @@ void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 }
 
 } // namespace nutt
+
+extern "C" {
+#include <zboss_api.h>
+#include <zcl/zb_zcl_common.h>
+}
+
+using namespace nutt;
+
+/*
+ * Workaround for zb_zcl_send_report_attr_command() being called with
+ * rep_info->manuf_code == 0 which doesn't exist calling
+ * zb_zcl_get_attr_desc_manuf_a() result in in a null pointer dereference
+ * https://github.com/espressif/esp-zigbee-sdk/issues/86
+ */
+extern "C" void __real_zb_zcl_send_report_attr_command(
+	struct zb_zcl_reporting_info_s *rep_info, zb_uint8_t param);
+
+extern "C" void __wrap_zb_zcl_send_report_attr_command(
+		struct zb_zcl_reporting_info_s *rep_info, zb_uint8_t param) {
+retry:
+	zb_zcl_attr_t *attr = zb_zcl_get_attr_desc_manuf_a(rep_info->ep,
+		rep_info->cluster_id, rep_info->cluster_role, rep_info->attr_id,
+		rep_info->manuf_code);
+	if (attr) {
+		ESP_LOGD(ZigbeeDevice::TAG, "zb_zcl_send_report_attr_command: ep=%u cluster_id=%u cluster_role=%u attr_id=%u manuf_code=%u attr=%p",
+			rep_info->ep, rep_info->cluster_id, rep_info->cluster_role,
+			rep_info->attr_id, rep_info->manuf_code, attr);
+	} else if (rep_info->manuf_code == 0) {
+		ESP_LOGW(ZigbeeDevice::TAG, "zb_zcl_send_report_attr_command: fixing manuf_code for ep=%u cluster_id=%u cluster_role=%u attr_id=%u manuf_code=%u",
+			rep_info->ep, rep_info->cluster_id, rep_info->cluster_role,
+			rep_info->attr_id, rep_info->manuf_code);
+		rep_info->manuf_code = ZB_ZCL_MANUFACTURER_WILDCARD_ID;
+		goto retry;
+	} else {
+		ESP_LOGE(ZigbeeDevice::TAG, "zb_zcl_send_report_attr_command: invalid ep=%u cluster_id=%u cluster_role=%u attr_id=%u manuf_code=%u",
+			rep_info->ep, rep_info->cluster_id, rep_info->cluster_role,
+			rep_info->attr_id, rep_info->manuf_code);
+		return;
+	}
+
+	__real_zb_zcl_send_report_attr_command(rep_info, param);
+}

@@ -37,3 +37,10 @@ target_compile_options(
 		-Werror
 		-DNUTT_GIT_COMMIT_TIME=${git_commit_time}+0UL
 )
+
+target_link_libraries(
+	${COMPONENT_LIB}
+	INTERFACE
+	-Wl,--undefined=__wrap_zb_zcl_send_report_attr_command
+	-Wl,--wrap=zb_zcl_send_report_attr_command
+)
