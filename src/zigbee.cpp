@@ -93,8 +93,7 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 
 void ZigbeeDevice::start() {
 	ESP_ERROR_CHECK(esp_zb_device_register(endpoint_list_));
-	esp_zb_device_add_set_attr_value_cb(set_attr_value_cb);
-	esp_zb_device_add_ota_upgrade_status_cb(ota_upgrade_status_cb);
+	esp_zb_core_action_handler_register(action_handler);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
 	ESP_ERROR_CHECK(esp_zb_start(false));
 
@@ -109,48 +108,41 @@ void ZigbeeDevice::run() {
 	esp_restart();
 }
 
-esp_err_t ZigbeeDevice::set_attr_value_cb(esp_zb_zcl_set_attr_value_message_t message) {
-	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
-		esp_err_t ret = instance_->set_attr_value(message.info.dst_endpoint,
-			message.info.cluster, message.attribute, &message.data);
-
-		if (ret != ESP_OK) {
-			ESP_LOGE(TAG, "Rejected attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
-				message.info.dst_endpoint, message.info.cluster, message.attribute,
-				message.data.type, message.data.size);
-		}
-		return ret;
-	} else {
-		ESP_LOGE(TAG, "Received invalid attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
-			message.info.dst_endpoint, message.info.cluster, message.attribute,
-			message.data.type, message.data.size);
-		return ESP_ERR_INVALID_ARG;
-	}
-}
-
-esp_err_t ZigbeeDevice::set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	auto it = endpoints_.find(endpoint_id);
-
-	if (it != endpoints_.end()) {
-		return it->second.set_attr_value(cluster_id, attr_id, data);
-	} else {
-		ESP_LOGW(TAG, "Setting invalid attribute");
-		return ESP_ERR_INVALID_ARG;
-	}
-}
-
 void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
 		uint8_t cluster_role, uint16_t attr_id, void *value) {
 	esp_zb_zcl_set_attribute_val(endpoint_id, cluster_id, cluster_role, attr_id, value, false);
 }
 
-esp_err_t ZigbeeDevice::ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message) {
-	return instance_->ota_upgrade(message);
+esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message) {
+	if (message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+		esp_err_t ret = ESP_ERR_INVALID_ARG;
+		auto it = endpoints_.find(message->info.dst_endpoint);
+
+		if (it != endpoints_.end()) {
+			ret = it->second.set_attr_value(message->info.cluster,
+				message->attribute.id, &message->attribute.data);
+		}
+
+		if (ret != ESP_OK) {
+			ESP_LOGE(TAG, "Rejected attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
+				message->info.dst_endpoint, message->info.cluster,
+				message->attribute.id, message->attribute.data.type,
+				message->attribute.data.size);
+		}
+
+		return ret;
+	} else {
+		ESP_LOGE(TAG, "Received invalid attribute write: endpoint %u cluster 0x%04x, attribute 0x%04x type 0x%04x size %u",
+			message->info.dst_endpoint, message->info.cluster,
+			message->attribute.id, message->attribute.data.type,
+			message->attribute.data.size);
+		return ESP_ERR_INVALID_ARG;
+	}
 }
 
-esp_err_t ZigbeeDevice::ota_upgrade(esp_zb_zcl_ota_update_message_t message) {
-	if (message.info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
-		if (message.update_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
+esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_update_message_t *message) {
+	if (message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+		if (message->update_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
 			if (ota_receive_not_logged_) {
 				ESP_LOGD(TAG, "OTA (%zu receive data messages suppressed)",
 					ota_receive_not_logged_);
@@ -159,7 +151,7 @@ esp_err_t ZigbeeDevice::ota_upgrade(esp_zb_zcl_ota_update_message_t message) {
 			ota_last_receive_us_ = 0;
 		}
 
-		switch (message.update_status) {
+		switch (message->update_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
 			listener_.zigbee_ota_update(true);
@@ -229,7 +221,26 @@ esp_err_t ZigbeeDevice::ota_upgrade(esp_zb_zcl_ota_update_message_t message) {
 	return ESP_OK;
 }
 
-inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data) {
+esp_err_t ZigbeeDevice::action_handler(esp_zb_core_action_callback_id_t callback_id,
+		const void *data) {
+	switch (callback_id) {
+	case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
+		return instance_->set_attr_value(reinterpret_cast<const esp_zb_zcl_set_attr_value_message_t*>(data));
+
+	case ESP_ZB_CORE_OTA_UPGRADE_VALUE_CB_ID:
+		return instance_->ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_update_message_t*>(data));
+
+	default:
+		ESP_LOGW(TAG, "Unknown action: %u/0x%02x, data: %p", callback_id,
+			callback_id, data);
+		break;
+	}
+
+	return ESP_OK;
+}
+
+inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
+		esp_err_t status, void *data) {
 	switch (type) {
 	case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
 		break;
@@ -381,7 +392,8 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_
 		break;
 
 	default:
-		ESP_LOGW(TAG, "Unknown signal: %u/0x%02x, status: %d, data: %p", type, type, status, data);
+		ESP_LOGW(TAG, "Unknown signal: %u/0x%02x, status: %d, data: %p",
+			type, type, status, data);
 		break;
 	}
 }
@@ -451,7 +463,7 @@ void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
 
 esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *data) {
-	ESP_LOGE(TAG, "set_attr_value not supported");
+	ESP_LOGE(TAG, "set_attr_value not supported by endpoint %u", id_);
 	return ESP_ERR_INVALID_ARG;
 }
 

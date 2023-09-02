@@ -114,15 +114,14 @@ public:
 
 private:
 	static void start_top_level_commissioning(uint8_t mode_mask);
-	static esp_err_t set_attr_value_cb(esp_zb_zcl_set_attr_value_message_t message);
-	static esp_err_t ota_upgrade_status_cb(esp_zb_zcl_ota_update_message_t message);
+	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
-	esp_err_t set_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
-	esp_err_t ota_upgrade(esp_zb_zcl_ota_update_message_t message);
+	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);
+	esp_err_t ota_upgrade(const esp_zb_zcl_ota_update_message_t *message);
 
 	void update_state(ZigbeeState state);
 	void update_state(ZigbeeState state, bool configured);
