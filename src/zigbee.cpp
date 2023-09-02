@@ -229,26 +229,6 @@ esp_err_t ZigbeeDevice::ota_upgrade(esp_zb_zcl_ota_update_message_t message) {
 	return ESP_OK;
 }
 
-ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)
-	: id_(id), profile_id_(profile_id), device_id_(device_id) {
-}
-
-void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
-	device_ = &device;
-}
-
-esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *data) {
-	ESP_LOGE(TAG, "set_attr_value not supported");
-	return ESP_ERR_INVALID_ARG;
-}
-
-void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
-	if (device_) {
-		device_->update_attr_value(id_, cluster_id, cluster_role, attr_id, value);
-	}
-}
-
 inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data) {
 	switch (type) {
 	case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
@@ -459,6 +439,26 @@ void ZigbeeDevice::update_state(ZigbeeState state) {
 void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 	network_configured_ = configured;
 	update_state(state);
+}
+
+ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)
+	: id_(id), profile_id_(profile_id), device_id_(device_id) {
+}
+
+void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
+	device_ = &device;
+}
+
+esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data) {
+	ESP_LOGE(TAG, "set_attr_value not supported");
+	return ESP_ERR_INVALID_ARG;
+}
+
+void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
+	if (device_) {
+		device_->update_attr_value(id_, cluster_id, cluster_role, attr_id, value);
+	}
 }
 
 } // namespace nutt
