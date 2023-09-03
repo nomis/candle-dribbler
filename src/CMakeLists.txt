@@ -8,6 +8,7 @@ idf_component_register(
 		main.cpp
 		thread.cpp
 		ui.cpp
+		util.cpp
 		zigbee.cpp
 
     REQUIRES

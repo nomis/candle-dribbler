@@ -36,6 +36,7 @@
 #include "nutt/light.h"
 #include "nutt/thread.h"
 #include "nutt/ui.h"
+#include "nutt/util.h"
 #include "nutt/zigbee.h"
 
 namespace nutt {
@@ -90,6 +91,7 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 
 void Device::start() {
 	zigbee_.start();
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 0);
 
 	std::thread t;
 	make_thread(t, "device_main", 4096, 19, &Device::run_loop, this);
@@ -117,6 +119,11 @@ void Device::network_do(ZigbeeAction action) {
 
 void Device::scheduled_network_do(uint8_t param) {
 	instance_->zigbee_.network_do(static_cast<ZigbeeAction>(param));
+}
+
+void Device::scheduled_uptime(uint8_t param) {
+	instance_->main_ep_.update_uptime();
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 60000);
 }
 
 unsigned long Device::run_tasks() {
@@ -324,6 +331,9 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_GENERIC_DEVICE_TYPE_ID, &device_type_));
 
+	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
+		ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID, ZigbeeString{std::string{16, ' '}}.data()));
+
 	std::string serial_number;
 	esp_chip_info_t chip{};
 	uint8_t mac[8] = { 0 };
@@ -394,6 +404,16 @@ void MainEndpoint::reload_app_info() {
 		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
 		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
 		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
+}
+
+void MainEndpoint::update_uptime() {
+	auto uptime = duration_us_to_string(esp_timer_get_time());
+
+	update_attr_value(
+		ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+		ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
+		ZigbeeString{uptime, Device::MAX_STRING_LENGTH}.data());
 }
 
 esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,

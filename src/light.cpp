@@ -35,6 +35,7 @@
 #include "nutt/debounce.h"
 #include "nutt/device.h"
 #include "nutt/ui.h"
+#include "nutt/util.h"
 
 #ifndef ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID
 # define ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID (static_cast<esp_zb_ha_standard_devices_t>(0x0103))
@@ -176,27 +177,10 @@ void Light::primary_switch(bool state, bool local) {
 	if (local) {
 		if (switch_active_ != state) {
 			uint64_t now_us = esp_timer_get_time();
-			uint64_t elapsed_ms = (now_us - switch_change_us_) / 1000U;
-			unsigned long days = 0;
-			unsigned int hours, minutes, seconds, milliseconds;
 
-			days = elapsed_ms / (86400U * 1000U);
-			elapsed_ms %= 86400U * 1000U;
-
-			hours = elapsed_ms / (3600U * 1000U);
-			elapsed_ms %= 3600U * 1000U;
-
-			minutes = elapsed_ms / (60U * 1000U);
-			elapsed_ms %= 60U * 1000U;
-
-			seconds = elapsed_ms / 1000U;
-			elapsed_ms %= 1000U;
-
-			milliseconds = elapsed_ms;
-
-			ESP_LOGD(TAG, "Light %u switch was %s for %03lu+%02u:%02u:%02u.%03ums",
-				index_, switch_active_ ? "on" : "off", days, hours, minutes,
-				seconds, milliseconds);
+			ESP_LOGD(TAG, "Light %u switch was %s for %s",
+				index_, switch_active_ ? "on" : "off",
+				duration_us_to_string(now_us - switch_change_us_).c_str());
 
 			switch_active_ = state;
 			switch_change_us_ = now_us;

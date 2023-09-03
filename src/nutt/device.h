@@ -69,6 +69,7 @@ public:
 private:
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_network_do(uint8_t param);
+	static void scheduled_uptime(uint8_t param);
 
 	void reload_app_info(bool full);
 	void do_refresh();
@@ -98,6 +99,7 @@ public:
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 	void reload_app_info();
+	void update_uptime();
 	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *data)  override;
 
