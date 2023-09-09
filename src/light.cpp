@@ -54,7 +54,6 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		temporary_enable_(persistent_enable_),
 		primary_ep_(*new light::PrimaryEndpoint{*this}),
 		secondary_ep_(*new light::SecondaryEndpoint{*this}),
-		tertiary_ep_(*new light::TertiaryEndpoint{*this}),
 		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}),
 		temporary_enable_ep_(*new light::TemporaryEnableEndpoint{*this}) {
 	gpio_config_t relay_config = {
@@ -105,7 +104,7 @@ void Light::attach(Device &device) {
 	device.add(*this, {
 		primary_ep_,
 		secondary_ep_,
-		tertiary_ep_,
+		*new light::TertiaryEndpoint{*this},
 		switch_status_ep_,
 		temporary_enable_ep_,
 		*new light::PersistentEnableEndpoint{*this},
@@ -120,8 +119,12 @@ unsigned long Light::run() {
 	if (debounce.changed) {
 		if (switch_debounce_.first()) {
 			std::lock_guard lock{mutex_};
+			bool state = switch_debounce_.value();
 
-			switch_active_ = switch_debounce_.value();
+			if (switch_active_ != state) {
+				refresh_switch_status_ = true;
+			}
+			switch_active_ = state;
 			switch_change_us_ = esp_timer_get_time();
 			request_refresh();
 		} else {
@@ -172,6 +175,9 @@ void Light::primary_switch(bool state, bool local) {
 	ESP_LOGD(TAG, "Light %u set primary switch %d -> %d (%s)",
 		index_, primary_on_, state, local ? "local" : "remote");
 
+	if (primary_on_ != state) {
+		refresh_primary_ = true;
+	}
 	primary_on_ = state;
 
 	if (local) {
@@ -184,6 +190,7 @@ void Light::primary_switch(bool state, bool local) {
 
 			switch_active_ = state;
 			switch_change_us_ = now_us;
+			refresh_switch_status_ = true;
 		}
 	}
 
@@ -206,6 +213,9 @@ void Light::secondary_switch(bool state, bool local) {
 void Light::secondary_switch_locked(bool state, bool local) {
 	ESP_LOGD(TAG, "Light %u set secondary switch %d -> %d (%s)",
 		index_, secondary_on_, state, local ? "local" : "remote");
+	if (secondary_on_ != state) {
+		refresh_secondary_ = true;
+	}
 	secondary_on_ = state;
 }
 
@@ -237,6 +247,9 @@ void Light::persistent_enable(bool state) {
 	persistent_enable_ = state;
 	ESP_LOGD(TAG, "Light %u set temporary enable %d -> %d (auto)",
 		index_, temporary_enable_, state);
+	if (temporary_enable_ != state) {
+		refresh_temporary_enable_ = true;
+	}
 	temporary_enable_ = state;
 	update_state();
 }
@@ -250,15 +263,29 @@ void Light::update_state() {
 }
 
 void Light::request_refresh() {
-	device_->request_refresh();
+	if (refresh_primary_ || refresh_secondary_ || refresh_switch_status_
+			|| refresh_temporary_enable_) {
+		device_->request_refresh();
+	}
 }
 
 void Light::refresh() {
-	primary_ep_.refresh();
-	secondary_ep_.refresh();
-	tertiary_ep_.refresh();
-	switch_status_ep_.refresh();
-	temporary_enable_ep_.refresh();
+	if (refresh_primary_) {
+		primary_ep_.refresh();
+		refresh_primary_ = false;
+	}
+	if (refresh_secondary_) {
+		secondary_ep_.refresh();
+		refresh_secondary_ = false;
+	}
+	if (refresh_switch_status_) {
+		switch_status_ep_.refresh();
+		refresh_switch_status_ = false;
+	}
+	if (refresh_temporary_enable_) {
+		temporary_enable_ep_.refresh();
+		refresh_temporary_enable_ = false;
+	}
 }
 
 namespace light {

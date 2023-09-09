@@ -225,10 +225,13 @@ private:
 	bool persistent_enable_{true};
 	bool temporary_enable_{true};
 	bool on_{false};
+	bool refresh_primary_{false};
+	bool refresh_secondary_{false};
+	bool refresh_switch_status_{false};
+	bool refresh_temporary_enable_{false};
 
 	light::PrimaryEndpoint &primary_ep_;
 	light::SecondaryEndpoint &secondary_ep_;
-	light::TertiaryEndpoint &tertiary_ep_;
 	light::SwitchStatusEndpoint &switch_status_ep_;
 	light::TemporaryEnableEndpoint &temporary_enable_ep_;
 
