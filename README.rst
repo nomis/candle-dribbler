@@ -185,6 +185,12 @@ The Zigbee specifications are thousands of pages long and it supports 240
 endpoints per device but there's no attribute to describe on/off clusters if
 you have more than one of the same type!
 
+Using `this version of homeassistant-entity-renamer
+<https://github.com/nomis/homeassistant-entity-renamer>`_ that can update
+the friendly names (so that they're not all "Light" and "Switch") and the
+`hass-rename-entities.sh script <hass-rename-entities.sh>`_ you can rename
+all of the entities automatically.
+
 The control cluster endpoints are in the following order:
 
 .. list-table::
