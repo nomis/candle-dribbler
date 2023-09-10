@@ -39,12 +39,27 @@ class Light;
 
 namespace light {
 
-class BooleanEndpoint: public ZigbeeEndpoint {
+class GroupsCluster: public ZigbeeCluster {
+public:
+	GroupsCluster();
+	~GroupsCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+};
+
+class ScenesCluster: public ZigbeeCluster {
+public:
+	ScenesCluster();
+	~ScenesCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+};
+
+class BooleanCluster: public ZigbeeCluster {
 protected:
-	BooleanEndpoint(Light &light, const char *name, ep_id_t base_ep_id,
-		esp_zb_ha_standard_devices_t type, uint16_t cluster_id,
+	BooleanCluster(Light &light, const char *name, uint16_t cluster_id,
 		uint16_t attr_id);
-	~BooleanEndpoint() = default;
+	~BooleanCluster() = default;
 
 	static constexpr const char *TAG = "nutt.Light";
 
@@ -56,111 +71,90 @@ protected:
 
 public:
 	void refresh();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+	esp_err_t set_attr_value(uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *value) override;
 
 protected:
 	Light &light_;
 
 private:
-	void configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list);
-
 	static uint32_t app_type_;
 
 	const char *name_;
-	const uint16_t cluster_id_;
 	const uint16_t attr_id_;
 	uint8_t state_;
 };
 
-class PrimaryEndpoint: public BooleanEndpoint {
+class PrimaryCluster: public BooleanCluster {
 public:
-	explicit PrimaryEndpoint(Light &light);
-	~PrimaryEndpoint() = delete;
+	explicit PrimaryCluster(Light &light);
+	~PrimaryCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 10;
 };
 
-class SecondaryEndpoint: public BooleanEndpoint {
+class SecondaryCluster: public BooleanCluster {
 public:
-	explicit SecondaryEndpoint(Light &light);
-	~SecondaryEndpoint() = delete;
+	explicit SecondaryCluster(Light &light);
+	~SecondaryCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 20;
 };
 
-class TertiaryEndpoint: public BooleanEndpoint {
+class TertiaryCluster: public BooleanCluster {
 public:
-	explicit TertiaryEndpoint(Light &light);
-	~TertiaryEndpoint() = delete;
+	explicit TertiaryCluster(Light &light);
+	~TertiaryCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 30;
 };
 
-class SwitchStatusEndpoint: public BooleanEndpoint {
+class SwitchStatusCluster: public BooleanCluster {
 public:
-	explicit SwitchStatusEndpoint(Light &light);
-	~SwitchStatusEndpoint() = delete;
+	explicit SwitchStatusCluster(Light &light);
+	~SwitchStatusCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 60;
 };
 
-class TemporaryEnableEndpoint: public BooleanEndpoint {
+class TemporaryEnableCluster: public BooleanCluster {
 public:
-	explicit TemporaryEnableEndpoint(Light &light);
-	~TemporaryEnableEndpoint() = delete;
+	explicit TemporaryEnableCluster(Light &light);
+	~TemporaryEnableCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 70;
 };
 
-class PersistentEnableEndpoint: public BooleanEndpoint {
+class PersistentEnableCluster: public BooleanCluster {
 public:
-	explicit PersistentEnableEndpoint(Light &light);
-	~PersistentEnableEndpoint() = delete;
+	explicit PersistentEnableCluster(Light &light);
+	~PersistentEnableCluster() = delete;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 protected:
 	bool refresh_value() override;
 	void updated_value(bool value) override;
-
-private:
-	static constexpr const ep_id_t BASE_EP_ID = 80;
 };
 
 } // namespace light
@@ -198,6 +192,12 @@ public:
 	void refresh();
 
 private:
+	static constexpr const ep_id_t PRIMARY_BASE_EP_ID = 10;
+	static constexpr const ep_id_t SECONDARY_BASE_EP_ID = 20;
+	static constexpr const ep_id_t TERTIARY_BASE_EP_ID = 30;
+	static constexpr const ep_id_t SWITCH_STATUS_BASE_EP_ID = 60;
+	static constexpr const ep_id_t TEMPORARY_ENABLE_BASE_EP_ID = 70;
+	static constexpr const ep_id_t PERSISTENT_ENABLE_BASE_EP_ID = 80;
 	static constexpr const unsigned long DEBOUNCE_US = 20 * 1000;
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 
@@ -211,7 +211,7 @@ private:
 	inline int relay_active() const { return relay_active_low_ ? 0 : 1; }
 	inline int relay_inactive() const { return relay_active_low_ ? 1 : 0; }
 
-	const size_t index_;
+	const uint8_t index_;
 	Debounce switch_debounce_;
 	const gpio_num_t relay_pin_;
 	const bool relay_active_low_;
@@ -230,10 +230,10 @@ private:
 	bool refresh_switch_status_{false};
 	bool refresh_temporary_enable_{false};
 
-	light::PrimaryEndpoint &primary_ep_;
-	light::SecondaryEndpoint &secondary_ep_;
-	light::SwitchStatusEndpoint &switch_status_ep_;
-	light::TemporaryEnableEndpoint &temporary_enable_ep_;
+	light::PrimaryCluster &primary_cl_;
+	light::SecondaryCluster &secondary_cl_;
+	light::SwitchStatusCluster &switch_status_cl_;
+	light::TemporaryEnableCluster &temporary_enable_cl_;
 
 	Device *device_{nullptr};
 };

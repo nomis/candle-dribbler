@@ -30,13 +30,84 @@
 
 namespace nutt {
 
+class Device;
 class Light;
 class UserInterface;
 
 namespace device {
 
-class MainEndpoint;
-class SoftwareEndpoint;
+class BasicCluster: public ZigbeeCluster {
+public:
+	BasicCluster(Device &device, const std::string_view manufacturer,
+		const std::string_view model, const std::string_view url);
+	~BasicCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void reload_app_info();
+	void update_uptime();
+
+private:
+	static constexpr const char *TAG = "nutt.Device";
+	static uint8_t power_source_;
+	static uint8_t device_class_;
+	static uint8_t device_type_;
+
+	Device &device_;
+	const std::string_view manufacturer_;
+	const std::string_view model_;
+	const std::string_view url_;
+};
+
+class IdentifyCluster: public ZigbeeCluster {
+public:
+	IdentifyCluster(UserInterface &ui);
+	~IdentifyCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	esp_err_t set_attr_value(uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data)  override;
+
+private:
+	UserInterface &ui_;
+};
+
+class UpgradeCluster: public ZigbeeCluster {
+public:
+	UpgradeCluster();
+	~UpgradeCluster() = delete;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+
+private:
+#ifdef CONFIG_NUTT_SUPPORT_OTA
+	static constexpr const uint16_t OTA_MANUFACTURER_ID = CONFIG_NUTT_OTA_MANUFACTURER_ID;
+	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = CONFIG_NUTT_OTA_IMAGE_TYPE_ID;
+# ifdef CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
+	static constexpr const uint32_t OTA_FILE_VERSION = static_cast<uint32_t>(NUTT_COMMIT_TIME);
+# else
+	static constexpr const uint32_t OTA_FILE_VERSION = CONFIG_NUTT_OTA_FILE_VERSION;
+# endif
+#else
+	static constexpr const uint16_t OTA_MANUFACTURER_ID = 0;
+	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = 0;
+	static constexpr const uint32_t OTA_FILE_VERSION = 0;
+#endif
+};
+
+class SoftwareCluster: public ZigbeeCluster {
+public:
+	SoftwareCluster(Device &device, size_t index);
+	~SoftwareCluster() = delete;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void reload_app_info(bool full);
+
+private:
+	static constexpr const char *TAG = "nutt.Device";
+
+	Device &device_;
+	size_t index_;
+};
 
 } // namespace device
 
@@ -67,6 +138,14 @@ public:
 	void zigbee_ota_update(bool ok, bool app_changed) override;
 
 private:
+	static constexpr const ep_id_t MAIN_EP_ID = 1;
+	static constexpr const ep_id_t SOFTWARE_BASE_EP_ID = 200;
+#ifdef CONFIG_NUTT_SUPPORT_OTA
+	static constexpr const bool OTA_SUPPORTED = true;
+#else
+	static constexpr const bool OTA_SUPPORTED = false;
+#endif
+
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_network_do(uint8_t param);
 	static void scheduled_uptime(uint8_t param);
@@ -83,70 +162,11 @@ private:
 	const esp_partition_t *part_next_;
 	const esp_partition_t *part_boot_;
 	std::vector<const esp_partition_t*> parts_;
-	device::MainEndpoint &main_ep_;
-	std::vector<std::reference_wrapper<device::SoftwareEndpoint>> software_eps_;
+	device::BasicCluster basic_cl_;
+	device::IdentifyCluster identify_cl_;
+	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::vector<std::reference_wrapper<Light>> lights_;
 	bool ota_validated_{false};
 };
-
-namespace device {
-
-class MainEndpoint: public ZigbeeEndpoint {
-public:
-	MainEndpoint(Device &device, const std::string_view manufacturer,
-		const std::string_view model, const std::string_view url);
-	~MainEndpoint() = delete;
-
-	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
-	void reload_app_info();
-	void update_uptime();
-	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *data)  override;
-
-private:
-	static constexpr const char *TAG = "nutt.Device";
-	static constexpr const ep_id_t EP_ID = 1;
-#ifdef CONFIG_NUTT_SUPPORT_OTA
-	static constexpr const bool OTA_SUPPORTED = true;
-	static constexpr const uint16_t OTA_MANUFACTURER_ID = CONFIG_NUTT_OTA_MANUFACTURER_ID;
-	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = CONFIG_NUTT_OTA_IMAGE_TYPE_ID;
-# ifdef CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
-	static constexpr const uint32_t OTA_FILE_VERSION = static_cast<uint32_t>(NUTT_COMMIT_TIME);
-# else
-	static constexpr const uint32_t OTA_FILE_VERSION = CONFIG_NUTT_OTA_FILE_VERSION;
-# endif
-#else
-	static constexpr const bool OTA_SUPPORTED = false;
-	static constexpr const uint16_t OTA_MANUFACTURER_ID = 0;
-	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = 0;
-	static constexpr const uint32_t OTA_FILE_VERSION = 0;
-#endif
-	static uint8_t power_source_;
-	static uint8_t device_class_;
-	static uint8_t device_type_;
-
-	Device &device_;
-	const std::string_view manufacturer_;
-	const std::string_view model_;
-	const std::string_view url_;
-};
-
-class SoftwareEndpoint: public ZigbeeEndpoint {
-public:
-	SoftwareEndpoint(Device &device, size_t index);
-	~SoftwareEndpoint() = delete;
-
-	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
-	void reload_app_info(bool full);
-
-private:
-	static constexpr const char *TAG = "nutt.Device";
-	static constexpr const ep_id_t BASE_EP_ID = 200;
-
-	Device &device_;
-	size_t index_;
-};
-
-} // namespace device
 
 } // namespace nutt

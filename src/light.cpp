@@ -52,10 +52,10 @@ Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
 		switch_active_(switch_debounce_.value()),
 		persistent_enable_(enable_nvs()),
 		temporary_enable_(persistent_enable_),
-		primary_ep_(*new light::PrimaryEndpoint{*this}),
-		secondary_ep_(*new light::SecondaryEndpoint{*this}),
-		switch_status_ep_(*new light::SwitchStatusEndpoint{*this}),
-		temporary_enable_ep_(*new light::TemporaryEnableEndpoint{*this}) {
+		primary_cl_(*new light::PrimaryCluster{*this}),
+		secondary_cl_(*new light::SecondaryCluster{*this}),
+		switch_status_cl_(*new light::SwitchStatusCluster{*this}),
+		temporary_enable_cl_(*new light::TemporaryEnableCluster{*this}) {
 	gpio_config_t relay_config = {
 		.pin_bit_mask = 1ULL << relay_pin_,
 		.mode = GPIO_MODE_OUTPUT,
@@ -102,12 +102,42 @@ void Light::enable_nvs(bool state) {
 void Light::attach(Device &device) {
 	device_ = &device;
 	device.add(*this, {
-		primary_ep_,
-		secondary_ep_,
-		*new light::TertiaryEndpoint{*this},
-		switch_status_ep_,
-		temporary_enable_ep_,
-		*new light::PersistentEnableEndpoint{*this},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(PRIMARY_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			{
+				primary_cl_,
+				*new light::GroupsCluster{},
+				*new light::ScenesCluster{}
+			}},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(SECONDARY_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			{
+				secondary_cl_,
+				*new light::GroupsCluster{},
+				*new light::ScenesCluster{}
+			}},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(TERTIARY_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			{
+				*new light::TertiaryCluster{*this},
+				*new light::GroupsCluster{},
+				*new light::ScenesCluster{}
+			}},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(SWITCH_STATUS_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID,
+			switch_status_cl_},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(TEMPORARY_ENABLE_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
+			temporary_enable_cl_},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(PERSISTENT_ENABLE_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
+			*new light::PersistentEnableCluster{*this}},
 	});
 
 	switch_debounce_.start(device);
@@ -271,60 +301,72 @@ void Light::request_refresh() {
 
 void Light::refresh() {
 	if (refresh_primary_) {
-		primary_ep_.refresh();
+		primary_cl_.refresh();
 		refresh_primary_ = false;
 	}
 	if (refresh_secondary_) {
-		secondary_ep_.refresh();
+		secondary_cl_.refresh();
 		refresh_secondary_ = false;
 	}
 	if (refresh_switch_status_) {
-		switch_status_ep_.refresh();
+		switch_status_cl_.refresh();
 		refresh_switch_status_ = false;
 	}
 	if (refresh_temporary_enable_) {
-		temporary_enable_ep_.refresh();
+		temporary_enable_cl_.refresh();
 		refresh_temporary_enable_ = false;
 	}
 }
 
 namespace light {
 
-BooleanEndpoint::BooleanEndpoint(Light &light, const char *name,
-		ep_id_t base_ep_id, esp_zb_ha_standard_devices_t type,
-		uint16_t cluster_id, uint16_t attr_id)
-		: ZigbeeEndpoint(base_ep_id + light.index(), ESP_ZB_AF_HA_PROFILE_ID,
-			type),
-		light_(light), name_(name), cluster_id_(cluster_id), attr_id_(attr_id) {
+GroupsCluster::GroupsCluster() : ZigbeeCluster(
+		ESP_ZB_ZCL_CLUSTER_ID_GROUPS, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
 }
 
-void BooleanEndpoint::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void GroupsCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_groups_cluster(&cluster_list,
+		esp_zb_groups_cluster_create(nullptr), role()));
+}
+
+ScenesCluster::ScenesCluster() : ZigbeeCluster(
+		ESP_ZB_ZCL_CLUSTER_ID_SCENES, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+}
+
+void ScenesCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_scenes_cluster(&cluster_list,
+		esp_zb_scenes_cluster_create(nullptr), role()));
+}
+
+BooleanCluster::BooleanCluster(Light &light, const char *name,
+		uint16_t cluster_id, uint16_t attr_id) : ZigbeeCluster(cluster_id,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE), light_(light), name_(name),
+			attr_id_(attr_id) {
+}
+
+void BooleanCluster::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t light_cfg{};
 	light_cfg.on_off = (state_ = refresh_value());
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&light_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	configure_common_cluster_list(cluster_list);
+		esp_zb_on_off_cluster_create(&light_cfg), role()));
 }
 
-void BooleanEndpoint::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BooleanCluster::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg{};
 	switch_cfg.on_off = (state_ = refresh_value());
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
-		esp_zb_on_off_cluster_create(&switch_cfg), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	configure_common_cluster_list(cluster_list);
+		esp_zb_on_off_cluster_create(&switch_cfg), role()));
 }
 
-uint32_t BooleanEndpoint::app_type_{
+uint32_t BooleanCluster::app_type_{
 	  (  0x03 << 24)  /* Group: Binary Input            */
 	| (  0x00 << 16)  /* Type:  Application Domain HVAC */
 	|  0x004B         /* Index: Lighting Status BI      */
 };
 
-void BooleanEndpoint::configure_binary_input_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BooleanCluster::configure_binary_input_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_binary_input_cluster_cfg_t input_cfg = {
 		.out_of_service = 0,
 		.status_flags = 0,
@@ -345,155 +387,133 @@ void BooleanEndpoint::configure_binary_input_cluster_list(esp_zb_cluster_list_t 
 			ZigbeeString("Light " + std::to_string(light_.index())).data()));
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_binary_input_cluster(&cluster_list,
-		input_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+		input_cluster, role()));
 }
 
-void BooleanEndpoint::configure_common_cluster_list(esp_zb_cluster_list_t &cluster_list) {
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_groups_cluster(&cluster_list,
-		esp_zb_groups_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_scenes_cluster(&cluster_list,
-		esp_zb_scenes_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-}
-
-void BooleanEndpoint::refresh() {
+void BooleanCluster::refresh() {
 	uint8_t new_state = refresh_value() ? 1 : 0;
 
 	if (new_state != state_) {
 		state_ = new_state;
 		ESP_LOGD(TAG, "Light %u report %s %u", light_.index(), name_, state_);
 
-		update_attr_value(cluster_id_, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, attr_id_,
-			&state_);
+		update_attr_value(attr_id_, &state_);
 	}
 }
 
-esp_err_t BooleanEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == cluster_id_) {
-		if (attr_id == attr_id_) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
-					&& data->size == sizeof(uint8_t)) {
-				state_ = *(uint8_t *)data->value;
-				updated_value(state_);
-				return ESP_OK;
-			}
+esp_err_t BooleanCluster::set_attr_value(uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data) {
+	if (attr_id == attr_id_) {
+		if (data->type == ESP_ZB_ZCL_ATTR_TYPE_BOOL
+				&& data->size == sizeof(uint8_t)) {
+			state_ = *(uint8_t *)data->value;
+			updated_value(state_);
+			return ESP_OK;
 		}
 	}
 	return ESP_ERR_INVALID_ARG;
 }
 
-PrimaryEndpoint::PrimaryEndpoint(Light &light)
-		: BooleanEndpoint(light, "primary switch", BASE_EP_ID,
-			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+PrimaryCluster::PrimaryCluster(Light &light)
+		: BooleanCluster(light, "primary switch", ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
-void PrimaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void PrimaryCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_light_cluster_list(cluster_list);
 }
 
-bool PrimaryEndpoint::refresh_value() {
+bool PrimaryCluster::refresh_value() {
 	return light_.primary_on();
 }
 
-void PrimaryEndpoint::updated_value(bool state) {
+void PrimaryCluster::updated_value(bool state) {
 	light_.primary_switch(state, false);
 }
 
-SecondaryEndpoint::SecondaryEndpoint(Light &light)
-		: BooleanEndpoint(light, "secondary switch", BASE_EP_ID,
-			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+SecondaryCluster::SecondaryCluster(Light &light)
+		: BooleanCluster(light, "secondary switch",
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
-void SecondaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void SecondaryCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_light_cluster_list(cluster_list);
 }
 
-bool SecondaryEndpoint::refresh_value() {
+bool SecondaryCluster::refresh_value() {
 	return light_.secondary_on();
 }
 
-void SecondaryEndpoint::updated_value(bool state) {
+void SecondaryCluster::updated_value(bool state) {
 	light_.secondary_switch(state, false);
 }
 
-TertiaryEndpoint::TertiaryEndpoint(Light &light)
-		: BooleanEndpoint(light, "tertiary switch", BASE_EP_ID,
-			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
-			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+TertiaryCluster::TertiaryCluster(Light &light)
+		: BooleanCluster(light, "tertiary switch", ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
 			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
-void TertiaryEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void TertiaryCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_light_cluster_list(cluster_list);
 }
 
-bool TertiaryEndpoint::refresh_value() {
+bool TertiaryCluster::refresh_value() {
 	return light_.tertiary_on();
 }
 
-void TertiaryEndpoint::updated_value(bool state) {
+void TertiaryCluster::updated_value(bool state) {
 	light_.tertiary_switch(state);
 }
 
-SwitchStatusEndpoint::SwitchStatusEndpoint(Light &light)
-		: BooleanEndpoint(light, "switch state", BASE_EP_ID,
-			ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID,
+SwitchStatusCluster::SwitchStatusCluster(Light &light)
+		: BooleanCluster(light, "switch state",
 			ESP_ZB_ZCL_CLUSTER_ID_BINARY_INPUT,
 			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID) {
 }
 
-void SwitchStatusEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void SwitchStatusCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_binary_input_cluster_list(cluster_list);
 }
 
-bool SwitchStatusEndpoint::refresh_value() {
+bool SwitchStatusCluster::refresh_value() {
 	return light_.switch_on();
 }
 
-void SwitchStatusEndpoint::updated_value(bool state) {
+void SwitchStatusCluster::updated_value(bool state) {
 	light_.refresh();
 }
 
-TemporaryEnableEndpoint::TemporaryEnableEndpoint(Light &light)
-		: BooleanEndpoint(light, "temporary enable", BASE_EP_ID,
-			ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
-			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+TemporaryEnableCluster::TemporaryEnableCluster(Light &light)
+		: BooleanCluster(light, "temporary enable",
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
-void TemporaryEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void TemporaryEnableCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_switch_cluster_list(cluster_list);
 }
 
-bool TemporaryEnableEndpoint::refresh_value() {
+bool TemporaryEnableCluster::refresh_value() {
 	return light_.temporary_enable();
 }
 
-void TemporaryEnableEndpoint::updated_value(bool state) {
+void TemporaryEnableCluster::updated_value(bool state) {
 	light_.temporary_enable(state);
 }
 
-PersistentEnableEndpoint::PersistentEnableEndpoint(Light &light)
-		: BooleanEndpoint(light, "persistent enable", BASE_EP_ID,
-			ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,
-			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-			ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
+PersistentEnableCluster::PersistentEnableCluster(Light &light)
+		: BooleanCluster(light, "persistent enable",
+			ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID) {
 }
 
-void PersistentEnableEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void PersistentEnableCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	configure_switch_cluster_list(cluster_list);
 }
 
-bool PersistentEnableEndpoint::refresh_value() {
+bool PersistentEnableCluster::refresh_value() {
 	return light_.persistent_enable();
 }
 
-void PersistentEnableEndpoint::updated_value(bool state) {
+void PersistentEnableCluster::updated_value(bool state) {
 	light_.persistent_enable(state);
 }
 

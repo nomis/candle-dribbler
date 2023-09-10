@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace nutt {
@@ -59,28 +60,52 @@ static inline std::string zigbee_address_string(esp_zb_ieee_addr_t address) {
 	return {data.data()};
 }
 
-class ZigbeeEndpoint {
+class ZigbeeCluster {
 protected:
-	ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id);
-	~ZigbeeEndpoint() = default;
+	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role);
+	~ZigbeeCluster() = default;
 
 public:
-	static constexpr const char *TAG = "nutt.ZigbeeEndpoint";
-
-	inline ep_id_t id() const { return id_; };
+	inline uint16_t id() const { return id_; }
+	inline esp_zb_zcl_cluster_role_t role() const { return role_; }
+	void attach(ZigbeeEndpoint &endpoint);
 	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
-	inline uint16_t profile_id() const { return profile_id_; };
-	inline uint16_t device_id() const { return device_id_; };
 
+	virtual esp_err_t set_attr_value(uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
+	void update_attr_value(uint16_t attr_id, void *value);
+
+private:
+	const uint16_t id_;
+	const esp_zb_zcl_cluster_role_t role_;
+	ZigbeeEndpoint *ep_{nullptr};
+};
+
+class ZigbeeEndpoint {
+public:
+	ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id);
+	ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id, ZigbeeCluster &cluster);
+	ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id,
+		std::vector<std::reference_wrapper<ZigbeeCluster>> &&clusters);
+	~ZigbeeEndpoint() = delete;
+
+	inline ep_id_t id() const { return id_; }
+	inline esp_zb_af_profile_id_t profile_id() const { return profile_id_; }
+	inline uint16_t device_id() const { return device_id_; }
+
+	void add(ZigbeeCluster &cluster);
 	void attach(ZigbeeDevice &device);
-
-	virtual esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
-	void update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list);
+	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data);
 
 private:
 	const ep_id_t id_;
-	const uint16_t profile_id_;
+	const esp_zb_af_profile_id_t profile_id_;
 	const uint16_t device_id_;
+	std::unordered_map<uint16_t,ZigbeeCluster&> clusters_;
 	ZigbeeDevice *device_{nullptr};
 };
 
@@ -100,7 +125,6 @@ enum class ZigbeeAction : uint8_t {
 
 class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
-	friend void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 public:
 	explicit ZigbeeDevice(ZigbeeListener &listener);
@@ -118,7 +142,6 @@ private:
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
-	void update_attr_value(uint8_t endpoint_id, uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value);
 
 	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);
 	esp_err_t ota_upgrade(const esp_zb_zcl_ota_update_message_t *message);

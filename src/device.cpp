@@ -45,8 +45,9 @@ Device *Device::instance_{nullptr};
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 		zigbee_(*new ZigbeeDevice{*this}),
-		main_ep_(*new device::MainEndpoint{*this, "uuid.uk", "candle-dribbler",
-			"https://github.com/nomis/candle-dribbler"}) {
+		basic_cl_(*this, "uuid.uk", "candle-dribbler",
+			"https://github.com/nomis/candle-dribbler"),
+		identify_cl_(ui_) {
 	assert(!instance_);
 	instance_ = this;
 
@@ -62,7 +63,15 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 		}
 	}
 
-	zigbee_.add(main_ep_);
+	auto &main_ep = *new ZigbeeEndpoint{MAIN_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
+		ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {basic_cl_, identify_cl_}};
+
+	if (OTA_SUPPORTED) {
+		ESP_LOGD(TAG, "OTA supported");
+		main_ep.add(*new device::UpgradeCluster{});
+	}
+
+	zigbee_.add(main_ep);
 
 	auto part_count = esp_ota_get_app_partition_count();
 	const esp_partition_t *part = part_current_;
@@ -75,10 +84,13 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 	for (size_t i = 0; i < part_count; i++, part = esp_ota_get_next_update_partition(part)) {
 		parts_.push_back(part);
 
-		auto software_ep = new device::SoftwareEndpoint{*this, i};
+		auto &software_cl = *new device::SoftwareCluster{*this, i};
 
-		software_eps_.emplace_back(*software_ep);
-		zigbee_.add(*software_ep);
+		software_cls_.emplace_back(software_cl);
+		zigbee_.add(*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(SOFTWARE_BASE_EP_ID + i),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
+			software_cl});
 	}
 }
 
@@ -122,7 +134,7 @@ void Device::scheduled_network_do(uint8_t param) {
 }
 
 void Device::scheduled_uptime(uint8_t param) {
-	instance_->main_ep_.update_uptime();
+	instance_->basic_cl_.update_uptime();
 	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 60000);
 }
 
@@ -240,10 +252,10 @@ void Device::reload_app_info(bool full) {
 	part_next_ = esp_ota_get_next_update_partition(nullptr);
 	part_boot_ = esp_ota_get_boot_partition();
 
-	main_ep_.reload_app_info();
+	basic_cl_.reload_app_info();
 
-	for (device::SoftwareEndpoint &software_ep : software_eps_)
-		software_ep.reload_app_info(full);
+	for (device::SoftwareCluster &software_cl : software_cls_)
+		software_cl.reload_app_info(full);
 }
 
 void Device::zigbee_network_state(bool configured, ZigbeeState state,
@@ -295,18 +307,18 @@ void Device::zigbee_ota_update(bool ok, bool app_changed) {
 
 namespace device {
 
-uint8_t MainEndpoint::power_source_{0x04}; /* DC */
-uint8_t MainEndpoint::device_class_{0x00}; /* Lighting */
-uint8_t MainEndpoint::device_type_{0xf0}; /* Generic actuator */
+uint8_t BasicCluster::power_source_{0x04}; /* DC */
+uint8_t BasicCluster::device_class_{0x00}; /* Lighting */
+uint8_t BasicCluster::device_type_{0xf0}; /* Generic actuator */
 
-MainEndpoint::MainEndpoint(Device &device,
+BasicCluster::BasicCluster(Device &device,
 		const std::string_view manufacturer, const std::string_view model,
-		const std::string_view url) : ZigbeeEndpoint(EP_ID,
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		device_(device), manufacturer_(manufacturer), model_(model), url_(url) {
+		const std::string_view url) : ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE), device_(device),
+		manufacturer_(manufacturer), model_(model), url_(url) {
 }
 
-void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+void BasicCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
 
 	/* Integers are used by reference but strings are immediately [copied] by value 🤷 */
@@ -365,79 +377,80 @@ void MainEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	device_.configure_basic_cluster(*basic_cluster, -1);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
-		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
-		esp_zb_identify_cluster_create(nullptr), ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
-
-	if (OTA_SUPPORTED) {
-		ESP_LOGD(TAG, "OTA supported");
-
-		esp_zb_ota_cluster_cfg_t ota_config{};
-		ota_config.ota_upgrade_manufacturer = OTA_MANUFACTURER_ID;
-		ota_config.ota_upgrade_image_type = OTA_IMAGE_TYPE_ID;
-		ota_config.ota_upgrade_file_version = OTA_FILE_VERSION;
-
-		esp_zb_attribute_list_t *ota_cluster = esp_zb_ota_cluster_create(&ota_config);
-
-		esp_zb_ota_upgrade_client_parameter_t ota_client_parameters{};
-		ota_client_parameters.max_data_size = UINT8_MAX;
-		ota_client_parameters.query_timer = ESP_ZB_ZCL_OTA_UPGRADE_QUERY_TIMER_COUNT_DEF;
-
-		esp_zb_ota_cluster_add_attr(ota_cluster,
-			ESP_ZB_ZCL_ATTR_OTA_UPGRADE_CLIENT_PARAMETER_ID,
-			esp_zb_ota_client_parameter(&ota_client_parameters));
-
-		ESP_ERROR_CHECK(esp_zb_cluster_list_add_ota_cluster(&cluster_list,
-			ota_cluster, ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE));
-	}
+		basic_cluster, role()));
 }
 
-void MainEndpoint::reload_app_info() {
+void BasicCluster::reload_app_info() {
 	std::string label, date_code, version;
 
 	device_.make_app_info(-1, label, date_code, version);
 
 	ESP_LOGD(TAG, "Label: %s", label.c_str());
-	update_attr_value(
-		ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+	update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
 		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
 }
 
-void MainEndpoint::update_uptime() {
+void BasicCluster::update_uptime() {
 	auto uptime = duration_us_to_string(esp_timer_get_time());
 
-	update_attr_value(
-		ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-		ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
+	update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
 		ZigbeeString{uptime, Device::MAX_STRING_LENGTH}.data());
 }
 
-esp_err_t MainEndpoint::set_attr_value(uint16_t cluster_id,
-		uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data) {
-	if (cluster_id == ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY) {
-		if (attr_id == ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID) {
-			if (data->type == ESP_ZB_ZCL_ATTR_TYPE_U16
-					&& data->size == sizeof(uint16_t)) {
-				uint16_t identify_time = *(uint16_t *)data->value;
-				device_.ui().identify(identify_time);
-				return ESP_OK;
-			}
+IdentifyCluster::IdentifyCluster(UserInterface &ui)
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE), ui_(ui) {
+}
+
+void IdentifyCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_identify_cluster(&cluster_list,
+		esp_zb_identify_cluster_create(nullptr), role()));
+}
+
+void UpgradeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_ota_cluster_cfg_t ota_config{};
+	ota_config.ota_upgrade_manufacturer = OTA_MANUFACTURER_ID;
+	ota_config.ota_upgrade_image_type = OTA_IMAGE_TYPE_ID;
+	ota_config.ota_upgrade_file_version = OTA_FILE_VERSION;
+
+	esp_zb_attribute_list_t *ota_cluster = esp_zb_ota_cluster_create(&ota_config);
+
+	esp_zb_ota_upgrade_client_parameter_t ota_client_parameters{};
+	ota_client_parameters.max_data_size = UINT8_MAX;
+	ota_client_parameters.query_timer = ESP_ZB_ZCL_OTA_UPGRADE_QUERY_TIMER_COUNT_DEF;
+
+	esp_zb_ota_cluster_add_attr(ota_cluster,
+		ESP_ZB_ZCL_ATTR_OTA_UPGRADE_CLIENT_PARAMETER_ID,
+		esp_zb_ota_client_parameter(&ota_client_parameters));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_ota_cluster(&cluster_list,
+		ota_cluster, role()));
+}
+
+esp_err_t IdentifyCluster::set_attr_value(uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data) {
+	if (attr_id == ESP_ZB_ZCL_ATTR_IDENTIFY_IDENTIFY_TIME_ID) {
+		if (data->type == ESP_ZB_ZCL_ATTR_TYPE_U16
+				&& data->size == sizeof(uint16_t)) {
+			uint16_t identify_time = *(uint16_t *)data->value;
+			ui_.identify(identify_time);
+			return ESP_OK;
 		}
 	}
 	return ESP_ERR_INVALID_ARG;
 }
 
-SoftwareEndpoint::SoftwareEndpoint(Device &device, size_t index)
-		: ZigbeeEndpoint(BASE_EP_ID + index,
-			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID),
-		device_(device), index_(index) {
+UpgradeCluster::UpgradeCluster()
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
 }
 
-void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+SoftwareCluster::SoftwareCluster(Device &device, size_t index)
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE), device_(device), index_(index) {
+}
+
+void SoftwareCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_attribute_list_t *basic_cluster = esp_zb_basic_cluster_create(nullptr);
 
 	ESP_LOGD(TAG, "App Partition: %zu", index_);
@@ -445,10 +458,10 @@ void SoftwareEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_lis
 	device_.configure_basic_cluster(*basic_cluster, index_);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_basic_cluster(&cluster_list,
-		basic_cluster, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE));
+		basic_cluster, role()));
 }
 
-void SoftwareEndpoint::reload_app_info(bool full) {
+void SoftwareCluster::reload_app_info(bool full) {
 	std::string label, date_code, version;
 
 	device_.make_app_info(index_, label, date_code, version);
@@ -457,23 +470,17 @@ void SoftwareEndpoint::reload_app_info(bool full) {
 
 	if (full) {
 		ESP_LOGD(TAG, "Date code: %s", date_code.c_str());
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
+		update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID,
 			ZigbeeString{date_code, Device::MAX_DATE_CODE_LENGTH}.data());
 	}
 
 	ESP_LOGD(TAG, "Label: %s", label.c_str());
-	update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-		ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-		ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
+	update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
 		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
 
 	if (full) {
 		ESP_LOGD(TAG, "Version: %s", version.c_str());
-		update_attr_value(ESP_ZB_ZCL_CLUSTER_ID_BASIC,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
+		update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_VERSION_DETAILS_ID,
 			ZigbeeString{version, Device::MAX_STRING_LENGTH}.data());
 	}
 }

@@ -26,8 +26,11 @@
 
 #include <algorithm>
 #include <cstring>
+#include <set>
 #include <string_view>
 #include <thread>
+#include <utility>
+#include <vector>
 
 #include "nutt/thread.h"
 
@@ -106,11 +109,6 @@ void ZigbeeDevice::run() {
 	esp_zb_main_loop_iteration();
 	ESP_LOGE(TAG, "Zigbee main loop stopped");
 	esp_restart();
-}
-
-void ZigbeeDevice::update_attr_value(uint8_t endpoint_id, uint16_t cluster_id,
-		uint8_t cluster_role, uint16_t attr_id, void *value) {
-	esp_zb_zcl_set_attribute_val(endpoint_id, cluster_id, cluster_role, attr_id, value, false);
 }
 
 esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message) {
@@ -453,24 +451,70 @@ void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 	update_state(state);
 }
 
-ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, uint16_t profile_id, uint16_t device_id)
-	: id_(id), profile_id_(profile_id), device_id_(device_id) {
+ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id) : id_(id), profile_id_(profile_id),
+		device_id_(device_id) {
+}
+
+ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id, ZigbeeCluster &cluster) : id_(id),
+		profile_id_(profile_id), device_id_(device_id) {
+	add(cluster);
+}
+
+ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
+		uint16_t device_id,
+		std::vector<std::reference_wrapper<ZigbeeCluster>> &&clusters)
+		: id_(id), profile_id_(profile_id), device_id_(device_id) {
+	for (auto cluster : clusters)
+		add(cluster);
+}
+
+void ZigbeeEndpoint::add(ZigbeeCluster &cluster) {
+	if (clusters_.emplace(cluster.id(), cluster).second)
+		cluster.attach(*this);
 }
 
 void ZigbeeEndpoint::attach(ZigbeeDevice &device) {
 	device_ = &device;
 }
 
+void ZigbeeEndpoint::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	std::set<uint16_t> cluster_ids;
+
+	for (auto &cluster : clusters_)
+		cluster_ids.emplace(cluster.first);
+
+	for (auto &cluster_id : cluster_ids)
+		clusters_.at(cluster_id).configure_cluster_list(cluster_list);
+}
+
 esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *data) {
-	ESP_LOGE(TAG, "set_attr_value not supported by endpoint %u", id_);
+	auto it = clusters_.find(cluster_id);
+
+	if (it != clusters_.end()) {
+		return it->second.set_attr_value(attr_id, data);
+	} else {
+		return ESP_ERR_INVALID_ARG;
+	}
+}
+
+ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role)
+		: id_(id), role_(role) {
+}
+
+void ZigbeeCluster::attach(ZigbeeEndpoint &ep) {
+	ep_ = &ep;
+}
+
+esp_err_t ZigbeeCluster::set_attr_value(uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *data) {
 	return ESP_ERR_INVALID_ARG;
 }
 
-void ZigbeeEndpoint::update_attr_value(uint16_t cluster_id, uint8_t cluster_role, uint16_t attr_id, void *value) {
-	if (device_) {
-		device_->update_attr_value(id_, cluster_id, cluster_role, attr_id, value);
-	}
+void ZigbeeCluster::update_attr_value(uint16_t attr_id, void *value) {
+	esp_zb_zcl_set_attribute_val(ep_->id(), id_, role_, attr_id, value, false);
 }
 
 } // namespace nutt
