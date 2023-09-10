@@ -31,7 +31,7 @@ Zigbee network. Joining a new network is not performed automatically. Leaving
 the network currently requires a restart.
 
 Each physical light has a switch GPIO and a relay GPIO and presents the
-following Zigbee endpoints:
+following Zigbee on/off clusters:
 
 * Primary Light - *physical switch*
 * Secondary Light - *virtual switch*
@@ -49,10 +49,10 @@ The relay will be activated under the following conditions:
 * The **Secondary Light** is on
 * The **Tertiary Light** is on
 
-The reason for having so many light endpoints is that it provides the unmodified
+The reason for having so many light clusters is that it provides the unmodified
 state of the physical switch when implementing automation on the virtual
 switches. If a timer is used to turn on/off the light using the secondary or
-tertiary endpoints, it will remain separate from any use of the primary switch
+tertiary cluster, it will remain separate from any use of the primary switch
 instead of being unaware that the light should now stay on.
 
 Whenever the **Primary Light** is turned off the **Secondary Light** will also
@@ -69,7 +69,7 @@ changing bulbs or during specific time periods or conditions. When changed, the
 **Persistent Enable Switch** will update the **Temporary Enable Switch** and
 store the selection in flash to be used on startup.
 
-All of the **Light** endpoints can be modified remotely, with the **Switch
+All of the **Light** clusters can be modified remotely, with the **Switch
 Status** being a read-only representation of the current switch state (which is
 a useful record of activity if that is a motion detector).
 
@@ -182,10 +182,10 @@ What order are all the entities shown in Home Assistant?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Zigbee specifications are thousands of pages long and it supports 240
-endpoints per device but there's no attribute to describe on/off endpoints if
+endpoints per device but there's no attribute to describe on/off clusters if
 you have more than one of the same type!
 
-The control endpoints are in the following order:
+The control cluster endpoints are in the following order:
 
 .. list-table::
    :widths: 20 10 70
@@ -270,7 +270,7 @@ The control endpoints are in the following order:
      - 8n
      - Enable N (Persistent)
 
-The sensor endpoints are in the following order:
+The sensor cluster endpoints are in the following order:
 
 .. list-table::
    :widths: 20 10 70
@@ -280,17 +280,17 @@ The sensor endpoints are in the following order:
      - Endpoint
      - Name
    * - Binaryinput
-     - 61
+     - 11
      - Switch 1
    * - Binaryinput
-     - 62
+     - 12
      - Switch 2
    * - Binaryinput
-     - 63
+     - 13
      - Switch 3
    * - ⋮
      - ⋮
      - ⋮
    * - Binaryinput
-     - 6n
+     - 1n
      - Switch N
