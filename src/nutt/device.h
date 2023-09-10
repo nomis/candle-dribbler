@@ -125,7 +125,7 @@ public:
 
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
-	void request_refresh();
+	void request_refresh(Light &light);
 
 	inline UserInterface& ui() { return ui_; };
 	void network_do(ZigbeeAction action);
@@ -151,7 +151,7 @@ private:
 	static void scheduled_uptime(uint8_t param);
 
 	void reload_app_info(bool full);
-	void do_refresh();
+	void do_refresh(uint8_t light);
 	unsigned long run_tasks() override;
 
 	static Device *instance_;
@@ -165,7 +165,7 @@ private:
 	device::BasicCluster basic_cl_;
 	device::IdentifyCluster identify_cl_;
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
-	std::vector<std::reference_wrapper<Light>> lights_;
+	std::unordered_map<uint8_t,Light&> lights_;
 	bool ota_validated_{false};
 };
 

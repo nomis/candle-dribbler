@@ -31,6 +31,7 @@
 #include <functional>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "nutt/light.h"
@@ -95,7 +96,7 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
-	lights_.emplace_back(light);
+	lights_.emplace(light.index(), light);
 
 	for (auto ep : endpoints)
 		zigbee_.add(ep);
@@ -110,19 +111,17 @@ void Device::start() {
 	t.detach();
 }
 
-void Device::request_refresh() {
-	esp_zb_scheduler_alarm(&Device::scheduled_refresh, 0, 0);
+void Device::request_refresh(Light &light) {
+	esp_zb_scheduler_alarm(&Device::scheduled_refresh, light.index(), 0);
 }
 
-void Device::do_refresh() {
-	ESP_LOGD(TAG, "Refresh");
-
-	for (Light &light : lights_)
-		light.refresh();
+void Device::do_refresh(uint8_t light) {
+	ESP_LOGD(TAG, "Refresh light %u", light);
+	lights_.at(light).refresh();
 }
 
 void Device::scheduled_refresh(uint8_t param) {
-	instance_->do_refresh();
+	instance_->do_refresh(param);
 }
 
 void Device::network_do(ZigbeeAction action) {
@@ -141,8 +140,8 @@ void Device::scheduled_uptime(uint8_t param) {
 unsigned long Device::run_tasks() {
 	unsigned long wait_ms = ULONG_MAX;
 
-	for (Light &light : lights_)
-		wait_ms = std::min(wait_ms, light.run());
+	for (auto &light : lights_)
+		wait_ms = std::min(wait_ms, light.second.run());
 
 	return wait_ms;
 }

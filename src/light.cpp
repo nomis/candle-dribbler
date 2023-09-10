@@ -45,7 +45,7 @@ namespace nutt {
 
 std::unique_ptr<nvs::NVSHandle> Light::nvs_;
 
-Light::Light(size_t index, gpio_num_t switch_pin, bool switch_active_low,
+Light::Light(uint8_t index, gpio_num_t switch_pin, bool switch_active_low,
 		gpio_num_t relay_pin, bool relay_active_low) : index_(index),
 		switch_debounce_(switch_pin, switch_active_low, DEBOUNCE_US),
 		relay_pin_(relay_pin), relay_active_low_(relay_active_low),
@@ -292,7 +292,7 @@ void Light::update_state() {
 void Light::request_refresh() {
 	if (refresh_primary_ || refresh_secondary_ || refresh_switch_status_
 			|| refresh_temporary_enable_) {
-		device_->request_refresh();
+		device_->request_refresh(*this);
 	}
 }
 
