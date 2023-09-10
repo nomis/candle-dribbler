@@ -542,7 +542,7 @@ retry:
 		rep_info->cluster_id, rep_info->cluster_role, rep_info->attr_id,
 		rep_info->manuf_code);
 	if (attr) {
-		ESP_LOGD(ZigbeeDevice::TAG, "zb_zcl_send_report_attr_command: ep=%u cluster_id=%u cluster_role=%u attr_id=%u manuf_code=%u attr=%p",
+		ESP_LOGV(ZigbeeDevice::TAG, "zb_zcl_send_report_attr_command: ep=%u cluster_id=%u cluster_role=%u attr_id=%u manuf_code=%u attr=%p",
 			rep_info->ep, rep_info->cluster_id, rep_info->cluster_role,
 			rep_info->attr_id, rep_info->manuf_code, attr);
 	} else if (rep_info->manuf_code == 0) {
