@@ -27,6 +27,10 @@ config NUTT_UI_LED_BRIGHTNESS
 	help
 		Configure LED brightness.
 
+config NUTT_ZIGBEE_ROLE_ROUTER
+	bool
+	default y if ZB_ZCZR
+
 menuconfig NUTT_SUPPORT_OTA
 	bool "Support OTA"
 	default n

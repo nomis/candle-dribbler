@@ -19,6 +19,7 @@
 #pragma once
 
 #include <esp_zigbee_core.h>
+#include <sdkconfig.h>
 
 #include <string>
 #include <string_view>
@@ -137,6 +138,12 @@ public:
 	void network_do(ZigbeeAction action);
 
 private:
+#ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
+	static constexpr const bool ROUTER = true;
+#else
+	static constexpr const bool ROUTER = false;
+#endif
+
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
 

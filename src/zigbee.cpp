@@ -23,6 +23,7 @@
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
+#include <zb_config_common.h>
 
 #include <algorithm>
 #include <cstring>
@@ -71,10 +72,16 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 
 	esp_zb_cfg_t config{};
 
-	config.esp_zb_role = ESP_ZB_DEVICE_TYPE_ED,
-	config.install_code_policy = false,
-	config.nwk_cfg.zed_cfg.ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_16MIN;
-	config.nwk_cfg.zed_cfg.keep_alive = 3000; /* milliseconds */
+	config.install_code_policy = false;
+
+	if (ROUTER) {
+		config.esp_zb_role = ESP_ZB_DEVICE_TYPE_ROUTER;
+		config.nwk_cfg.zczr_cfg.max_children = ZB_DEFAULT_MAX_CHILDREN;
+	} else {
+		config.esp_zb_role = ESP_ZB_DEVICE_TYPE_ED;
+		config.nwk_cfg.zed_cfg.ed_timeout = ESP_ZB_ED_AGING_TIMEOUT_16MIN;
+		config.nwk_cfg.zed_cfg.keep_alive = 3000; /* milliseconds */
+	}
 
 	esp_zb_init(&config);
 
@@ -241,6 +248,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 		esp_err_t status, void *data) {
 	switch (type) {
 	case ESP_ZB_ZDO_SIGNAL_PRODUCTION_CONFIG_READY:
+	case ESP_ZB_NWK_SIGNAL_PERMIT_JOIN_STATUS:
 		break;
 
 	case ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP:
