@@ -61,6 +61,12 @@ protected:
 		uint16_t attr_id);
 	~BooleanCluster() = default;
 
+public:
+	void refresh();
+	esp_err_t set_attr_value(uint16_t attr_id,
+		const esp_zb_zcl_attribute_data_t *value) override;
+
+protected:
 	static constexpr const char *TAG = "nutt.Light";
 
 	void configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list);
@@ -69,12 +75,6 @@ protected:
 	virtual bool refresh_value() = 0;
 	virtual void updated_value(bool value) = 0;
 
-public:
-	void refresh();
-	esp_err_t set_attr_value(uint16_t attr_id,
-		const esp_zb_zcl_attribute_data_t *value) override;
-
-protected:
 	Light &light_;
 
 private:
