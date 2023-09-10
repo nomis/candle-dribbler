@@ -112,7 +112,7 @@ void Device::start() {
 }
 
 void Device::request_refresh(Light &light) {
-	esp_zb_scheduler_alarm(&Device::scheduled_refresh, light.index(), 0);
+	esp_zb_scheduler_alarm(&Device::scheduled_refresh, light.index(), 1);
 }
 
 void Device::do_refresh(uint8_t light) {

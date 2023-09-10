@@ -148,9 +148,6 @@ unsigned long Light::run() {
 			std::lock_guard lock{mutex_};
 			bool state = switch_debounce_.value();
 
-			if (switch_active_ != state) {
-				refresh_switch_status_ = true;
-			}
 			switch_active_ = state;
 			switch_change_us_ = esp_timer_get_time();
 			request_refresh();
@@ -202,9 +199,6 @@ void Light::primary_switch(bool state, bool local) {
 	ESP_LOGD(TAG, "Light %u set primary switch %d -> %d (%s)",
 		index_, primary_on_, state, local ? "local" : "remote");
 
-	if (primary_on_ != state) {
-		refresh_primary_ = true;
-	}
 	primary_on_ = state;
 
 	if (local) {
@@ -217,7 +211,6 @@ void Light::primary_switch(bool state, bool local) {
 
 			switch_active_ = state;
 			switch_change_us_ = now_us;
-			refresh_switch_status_ = true;
 		}
 	}
 
@@ -240,9 +233,6 @@ void Light::secondary_switch(bool state, bool local) {
 void Light::secondary_switch_locked(bool state, bool local) {
 	ESP_LOGD(TAG, "Light %u set secondary switch %d -> %d (%s)",
 		index_, secondary_on_, state, local ? "local" : "remote");
-	if (secondary_on_ != state) {
-		refresh_secondary_ = true;
-	}
 	secondary_on_ = state;
 }
 
@@ -274,9 +264,6 @@ void Light::persistent_enable(bool state) {
 	persistent_enable_ = state;
 	ESP_LOGD(TAG, "Light %u set temporary enable %d -> %d (auto)",
 		index_, temporary_enable_, state);
-	if (temporary_enable_ != state) {
-		refresh_temporary_enable_ = true;
-	}
 	temporary_enable_ = state;
 	update_state();
 }
@@ -290,29 +277,14 @@ void Light::update_state() {
 }
 
 void Light::request_refresh() {
-	if (refresh_primary_ || refresh_secondary_ || refresh_switch_status_
-			|| refresh_temporary_enable_) {
-		device_->request_refresh(*this);
-	}
+	device_->request_refresh(*this);
 }
 
 void Light::refresh() {
-	if (refresh_primary_) {
-		primary_cl_.refresh();
-		refresh_primary_ = false;
-	}
-	if (refresh_secondary_) {
-		secondary_cl_.refresh();
-		refresh_secondary_ = false;
-	}
-	if (refresh_switch_status_) {
-		switch_status_cl_.refresh();
-		refresh_switch_status_ = false;
-	}
-	if (refresh_temporary_enable_) {
-		temporary_enable_cl_.refresh();
-		refresh_temporary_enable_ = false;
-	}
+	primary_cl_.refresh();
+	secondary_cl_.refresh();
+	switch_status_cl_.refresh();
+	temporary_enable_cl_.refresh();
 }
 
 namespace light {
@@ -343,7 +315,7 @@ BooleanCluster::BooleanCluster(Light &light, const char *name,
 
 void BooleanCluster::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t light_cfg{};
-	light_cfg.on_off = (state_ = refresh_value());
+	light_cfg.on_off = (state_ = refresh_value() ? 1 : 0);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&light_cfg), role()));
@@ -351,7 +323,7 @@ void BooleanCluster::configure_light_cluster_list(esp_zb_cluster_list_t &cluster
 
 void BooleanCluster::configure_switch_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	esp_zb_on_off_cluster_cfg_t switch_cfg{};
-	switch_cfg.on_off = (state_ = refresh_value());
+	switch_cfg.on_off = (state_ = refresh_value() ? 1 : 0);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_on_off_cluster(&cluster_list,
 		esp_zb_on_off_cluster_create(&switch_cfg), role()));

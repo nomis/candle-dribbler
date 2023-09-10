@@ -224,10 +224,6 @@ private:
 	bool persistent_enable_{true};
 	bool temporary_enable_{true};
 	bool on_{false};
-	bool refresh_primary_{false};
-	bool refresh_secondary_{false};
-	bool refresh_switch_status_{false};
-	bool refresh_temporary_enable_{false};
 
 	light::PrimaryCluster &primary_cl_;
 	light::SecondaryCluster &secondary_cl_;
