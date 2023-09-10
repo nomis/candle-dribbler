@@ -107,7 +107,6 @@ void Light::attach(Device &device) {
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
 			{
 				primary_cl_,
-				switch_status_cl_,
 				*new light::GroupsCluster{},
 				*new light::ScenesCluster{}
 			}},
@@ -127,6 +126,10 @@ void Light::attach(Device &device) {
 				*new light::GroupsCluster{},
 				*new light::ScenesCluster{}
 			}},
+		*new ZigbeeEndpoint{
+			static_cast<ep_id_t>(SWITCH_STATUS_BASE_EP_ID + index_),
+			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_SWITCH_DEVICE_ID,
+			switch_status_cl_},
 		*new ZigbeeEndpoint{
 			static_cast<ep_id_t>(TEMPORARY_ENABLE_BASE_EP_ID + index_),
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_CONFIGURATION_TOOL_DEVICE_ID,

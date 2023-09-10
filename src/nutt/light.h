@@ -166,7 +166,7 @@ public:
 	~Light() = delete;
 
 	static constexpr const char *TAG = "nutt.Light";
-	static constexpr const size_t NUM_EP_PER_LIGHT = 5;
+	static constexpr const size_t NUM_EP_PER_LIGHT = 6;
 
 	inline uint8_t index() const { return index_; }
 
@@ -195,6 +195,7 @@ private:
 	static constexpr const ep_id_t PRIMARY_BASE_EP_ID = 10;
 	static constexpr const ep_id_t SECONDARY_BASE_EP_ID = 20;
 	static constexpr const ep_id_t TERTIARY_BASE_EP_ID = 30;
+	static constexpr const ep_id_t SWITCH_STATUS_BASE_EP_ID = 60;
 	static constexpr const ep_id_t TEMPORARY_ENABLE_BASE_EP_ID = 70;
 	static constexpr const ep_id_t PERSISTENT_ENABLE_BASE_EP_ID = 80;
 	static constexpr const unsigned long DEBOUNCE_US = 20 * 1000;
