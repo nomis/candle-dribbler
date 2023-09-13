@@ -21,6 +21,9 @@
 #include <esp_zigbee_core.h>
 #include <sdkconfig.h>
 
+#include <functional>
+#include <map>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -124,6 +127,34 @@ enum class ZigbeeAction : uint8_t {
 	JOIN_OR_LEAVE,
 };
 
+enum class ZigbeeDeviceType : uint8_t {
+	COORDINATOR,
+	ROUTER,
+	END_DEVICE,
+	UNKNOWN,
+};
+
+enum class ZigbeeNeighbourRelationship : uint8_t {
+	PARENT,
+	CHILD,
+	SIBLING,
+	OTHER,
+	FORMER_CHILD,
+	UNAUTH_CHILD,
+	UNKNOWN,
+};
+
+struct ZigbeeNeighbour {
+	std::string long_addr;
+	ZigbeeDeviceType type;
+
+	uint8_t depth;
+	ZigbeeNeighbourRelationship relationship;
+
+	uint8_t lqi;
+	int8_t rssi;
+};
+
 class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 
@@ -138,6 +169,7 @@ public:
 	void join_network();
 	void join_or_leave_network();
 	void leave_network();
+	std::shared_ptr<const std::map<uint16_t,ZigbeeNeighbour>> get_neighbours();
 
 private:
 #ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
@@ -145,10 +177,13 @@ private:
 #else
 	static constexpr const bool ROUTER = false;
 #endif
+	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
 	static void scheduled_network_do(uint8_t param);
+	static void scheduled_refresh_neighbours(uint8_t param);
+	static void refresh_neighbours_cb(uint8_t buffer);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
@@ -172,6 +207,12 @@ private:
 	ZigbeeState state_{ZigbeeState::INIT};
 	uint64_t ota_last_receive_us_{0};
 	size_t ota_receive_not_logged_{0};
+
+	uint8_t zb_buffer_;
+	uint16_t neighbour_table_update_count_;
+	std::mutex neighbours_mutex_;
+	std::shared_ptr<std::map<uint16_t,ZigbeeNeighbour>> neighbours_;
+	std::shared_ptr<std::map<uint16_t,ZigbeeNeighbour>> new_neighbours_;
 };
 
 class ZigbeeListener {

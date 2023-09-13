@@ -24,7 +24,7 @@
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
 extern "C" {
-#include <zb_config_common.h>
+#include <zboss_api.h>
 }
 
 #include <algorithm>
@@ -88,6 +88,7 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 	esp_zb_init(&config);
 
 	endpoint_list_ = esp_zb_ep_list_create();
+	neighbours_ = std::make_shared<std::map<uint16_t,ZigbeeNeighbour>>();
 }
 
 void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
@@ -108,6 +109,11 @@ void ZigbeeDevice::start() {
 	esp_zb_core_action_handler_register(action_handler);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
 	ESP_ERROR_CHECK(esp_zb_start(false));
+
+	zb_buffer_ = zb_buf_get_out();
+	if (zb_buffer_ == ZB_BUF_INVALID) {
+		ESP_LOGE(TAG, "ZBOSS buffer invalid");
+	}
 
 	std::thread t;
 	make_thread(t, "zigbee_main", 8192, 5, &ZigbeeDevice::run, this);
@@ -331,6 +337,9 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 					pan_id, esp_zb_get_current_channel(), short_address);
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
+
+			esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
+			esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
 		} else {
 			ESP_LOGW(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;
@@ -426,6 +435,11 @@ void ZigbeeDevice::leave_network() {
 	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::LEAVE), 0);
 }
 
+std::shared_ptr<const std::map<uint16_t,ZigbeeNeighbour>> ZigbeeDevice::get_neighbours() {
+	std::lock_guard lock{neighbours_mutex_};
+	return neighbours_;
+}
+
 void ZigbeeDevice::scheduled_network_do(uint8_t param) {
 	instance_->join_or_leave_network(static_cast<ZigbeeAction>(param));
 }
@@ -475,6 +489,90 @@ void ZigbeeDevice::update_state(ZigbeeState state) {
 void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 	network_configured_ = configured;
 	update_state(state);
+}
+
+void ZigbeeDevice::scheduled_refresh_neighbours(uint8_t param) {
+	if (instance_->zb_buffer_ == ZB_BUF_INVALID)
+		return;
+
+	zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(instance_->zb_buffer_, zb_nwk_nbr_iterator_params_t);
+	args->update_count = 0;
+	args->index = 0;
+	zb_buf_set_status(instance_->zb_buffer_, RET_OK);
+
+	instance_->new_neighbours_ = std::make_shared<std::map<uint16_t,ZigbeeNeighbour>>();
+
+	zb_nwk_nbr_iterator_next(instance_->zb_buffer_, refresh_neighbours_cb);
+}
+
+void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
+	if (zb_buf_get_status(buffer) != RET_OK) {
+		ESP_LOGE(TAG, "Buffer error refreshing neighbours");
+		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+		return;
+	}
+
+	zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(buffer, zb_nwk_nbr_iterator_params_t);
+	zb_nwk_nbr_iterator_entry_t *entry = (zb_nwk_nbr_iterator_entry_t *)zb_buf_begin(buffer);
+
+	if (args->index == 0) {
+		instance_->neighbour_table_update_count_ = args->update_count;
+	}
+
+	if (args->index != ZB_NWK_NBR_ITERATOR_INDEX_EOT) {
+		auto type = ZigbeeDeviceType::UNKNOWN;
+		auto relationship = ZigbeeNeighbourRelationship::UNKNOWN;
+
+		if (instance_->neighbour_table_update_count_ != args->update_count) {
+			ESP_LOGD(TAG, "Neighbour table updated while reading");
+			instance_->new_neighbours_.reset();
+			esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, 1000);
+			return;
+		}
+
+		if (entry->device_type == 0) {
+			type = ZigbeeDeviceType::COORDINATOR;
+		} else if (entry->device_type == 1) {
+			type = ZigbeeDeviceType::ROUTER;
+		} else if (entry->device_type == 2) {
+			type = ZigbeeDeviceType::END_DEVICE;
+		} else if (entry->device_type == 3) {
+			type = ZigbeeDeviceType::UNKNOWN;
+		}
+
+		if (entry->relationship == 0) {
+			relationship = ZigbeeNeighbourRelationship::PARENT;
+		} else if (entry->relationship == 1) {
+			relationship = ZigbeeNeighbourRelationship::CHILD;
+		} else if (entry->relationship == 2) {
+			relationship = ZigbeeNeighbourRelationship::SIBLING;
+		} else if (entry->relationship == 3) {
+			relationship = ZigbeeNeighbourRelationship::OTHER;
+		} else if (entry->relationship == 4) {
+			relationship = ZigbeeNeighbourRelationship::FORMER_CHILD;
+		} else if (entry->relationship == 5) {
+			relationship = ZigbeeNeighbourRelationship::UNAUTH_CHILD;
+		}
+
+		auto addr = entry->short_addr;
+		auto neighbour = ZigbeeNeighbour{
+				zigbee_address_string(entry->ieee_addr),
+				type, entry->depth, relationship, entry->lqi,
+				entry->rssi
+		};
+		instance_->new_neighbours_->emplace(addr, std::move(neighbour));
+
+		args->index++;
+		zb_nwk_nbr_iterator_next(buffer, refresh_neighbours_cb);
+	} else {
+		if (instance_->new_neighbours_) {
+			std::lock_guard lock{instance_->neighbours_mutex_};
+			instance_->neighbours_ = instance_->new_neighbours_;
+			instance_->new_neighbours_.reset();
+		}
+
+		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+	}
 }
 
 ZigbeeEndpoint::ZigbeeEndpoint(ep_id_t id, esp_zb_af_profile_id_t profile_id,
@@ -544,11 +642,6 @@ void ZigbeeCluster::update_attr_value(uint16_t attr_id, void *value) {
 }
 
 } // namespace nutt
-
-extern "C" {
-#include <zboss_api.h>
-#include <zcl/zb_zcl_common.h>
-}
 
 using namespace nutt;
 

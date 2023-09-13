@@ -195,6 +195,8 @@ void UserInterface::uart_handler() {
 				device->leave_network();
 			} else if (buf[0] == 'm') {
 				print_memory();
+			} else if (device && buf[0] == 'n') {
+				device->print_neighbours();
 			} else if (buf[0] == 'R') {
 				esp_restart();
 			} else if (buf[0] == 't') {

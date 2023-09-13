@@ -136,6 +136,69 @@ void Device::leave_network() {
 	zigbee_.leave_network();
 }
 
+void Device::print_neighbours() {
+	auto neighbours = zigbee_.get_neighbours();
+
+	ESP_LOGI(TAG, "Neighbours (%zu):", neighbours->size());
+
+	for (auto& [short_addr, neighbour] : *neighbours) {
+		char type = '_';
+		char relationship = '_';
+
+		switch (neighbour.type) {
+		case ZigbeeDeviceType::COORDINATOR:
+			type = 'C';
+			break;
+
+		case ZigbeeDeviceType::ROUTER:
+			type = 'R';
+			break;
+
+		case ZigbeeDeviceType::END_DEVICE:
+			type = 'E';
+			break;
+
+		case ZigbeeDeviceType::UNKNOWN:
+			type = '_';
+			break;
+		}
+
+		switch (neighbour.relationship) {
+		case ZigbeeNeighbourRelationship::PARENT:
+			relationship = 'P';
+			break;
+
+		case ZigbeeNeighbourRelationship::CHILD:
+			relationship = 'C';
+			break;
+
+		case ZigbeeNeighbourRelationship::SIBLING:
+			relationship = 'S';
+			break;
+
+		case ZigbeeNeighbourRelationship::OTHER:
+			relationship = 'O';
+			break;
+
+		case ZigbeeNeighbourRelationship::FORMER_CHILD:
+			relationship = 'F';
+			break;
+
+		case ZigbeeNeighbourRelationship::UNAUTH_CHILD:
+			relationship = 'U';
+			break;
+
+		case ZigbeeNeighbourRelationship::UNKNOWN:
+			relationship = '_';
+			break;
+		}
+
+		ESP_LOGI(TAG, "%s/%04x %c %u %c LQI %u RSSI %d",
+			neighbour.long_addr.c_str(), short_addr, type, neighbour.depth,
+			relationship, neighbour.lqi, neighbour.rssi);
+	}
+}
+
 void Device::scheduled_uptime(uint8_t param) {
 	instance_->basic_cl_.update_uptime();
 	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 60000);
