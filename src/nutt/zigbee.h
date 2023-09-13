@@ -135,7 +135,9 @@ public:
 
 	void add(ZigbeeEndpoint &endpoint);
 	void start();
-	void network_do(ZigbeeAction action);
+	void join_network();
+	void join_or_leave_network();
+	void leave_network();
 
 private:
 #ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
@@ -146,6 +148,7 @@ private:
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
+	static void scheduled_network_do(uint8_t param);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
@@ -155,6 +158,8 @@ private:
 
 	void update_state(ZigbeeState state);
 	void update_state(ZigbeeState state, bool configured);
+
+	void join_or_leave_network(ZigbeeAction action);
 
 	static ZigbeeDevice *instance_;
 

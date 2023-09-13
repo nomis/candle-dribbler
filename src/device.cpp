@@ -124,12 +124,16 @@ void Device::scheduled_refresh(uint8_t param) {
 	instance_->do_refresh(param);
 }
 
-void Device::network_do(ZigbeeAction action) {
-	esp_zb_scheduler_alarm(&Device::scheduled_network_do, static_cast<uint8_t>(action), 0);
+void Device::join_network() {
+	zigbee_.join_network();
 }
 
-void Device::scheduled_network_do(uint8_t param) {
-	instance_->zigbee_.network_do(static_cast<ZigbeeAction>(param));
+void Device::join_or_leave_network() {
+	zigbee_.join_or_leave_network();
+}
+
+void Device::leave_network() {
+	zigbee_.leave_network();
 }
 
 void Device::scheduled_uptime(uint8_t param) {

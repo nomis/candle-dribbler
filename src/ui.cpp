@@ -160,7 +160,7 @@ unsigned long UserInterface::run_tasks() {
 		ESP_LOGI(TAG, "Network join/leave button pressed");
 
 		if (device) {
-			device->network_do(ZigbeeAction::JOIN_OR_LEAVE);
+			device->join_or_leave_network();
 		}
 	}
 
@@ -190,9 +190,9 @@ void UserInterface::uart_handler() {
 			} else if (buf[0] == 'E') {
 				erase_core_dump();
 			} else if (device && buf[0] == 'j') {
-				device->network_do(ZigbeeAction::JOIN);
+				device->join_network();
 			} else if (device && buf[0] == 'l') {
-				device->network_do(ZigbeeAction::LEAVE);
+				device->leave_network();
 			} else if (buf[0] == 'm') {
 				print_memory();
 			} else if (buf[0] == 'R') {

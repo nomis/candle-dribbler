@@ -128,7 +128,9 @@ public:
 	void request_refresh(Light &light);
 
 	inline UserInterface& ui() { return ui_; };
-	void network_do(ZigbeeAction action);
+	void join_network();
+	void join_or_leave_network();
+	void leave_network();
 
 	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster, int app_index);
 	void make_app_info(int index, std::string &label, std::string &date_code, std::string &version);
@@ -147,7 +149,6 @@ private:
 #endif
 
 	static void scheduled_refresh(uint8_t param);
-	static void scheduled_network_do(uint8_t param);
 	static void scheduled_uptime(uint8_t param);
 
 	void reload_app_info(bool full);

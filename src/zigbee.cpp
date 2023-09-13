@@ -23,7 +23,9 @@
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <esp_zigbee_core.h>
+extern "C" {
 #include <zb_config_common.h>
+}
 
 #include <algorithm>
 #include <cstring>
@@ -412,7 +414,23 @@ void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
 	}
 }
 
-void ZigbeeDevice::network_do(ZigbeeAction action) {
+void ZigbeeDevice::join_network() {
+	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::JOIN), 0);
+}
+
+void ZigbeeDevice::join_or_leave_network() {
+	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::JOIN_OR_LEAVE), 0);
+}
+
+void ZigbeeDevice::leave_network() {
+	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::LEAVE), 0);
+}
+
+void ZigbeeDevice::scheduled_network_do(uint8_t param) {
+	instance_->join_or_leave_network(static_cast<ZigbeeAction>(param));
+}
+
+void ZigbeeDevice::join_or_leave_network(ZigbeeAction action) {
 	ZigbeeAction toggle_action;
 
 	if (state_ == ZigbeeState::INIT) {
