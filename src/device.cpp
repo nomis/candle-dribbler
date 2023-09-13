@@ -34,6 +34,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "nutt/main.h"
 #include "nutt/light.h"
 #include "nutt/thread.h"
 #include "nutt/ui.h"
@@ -46,7 +47,9 @@ Device *Device::instance_{nullptr};
 
 Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 		zigbee_(*new ZigbeeDevice{*this}),
-		basic_cl_(*this, "uuid.uk", "candle-dribbler",
+		basic_cl_(*this, "uuid.uk",
+			(MAX_LIGHTS > 0 || !ZigbeeDevice::ROUTER)
+				? "candle-dribbler" : "router",
 			"https://github.com/nomis/candle-dribbler"),
 		identify_cl_(ui_) {
 	assert(!instance_);

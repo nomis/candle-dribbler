@@ -159,6 +159,12 @@ class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 
 public:
+#ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
+	static constexpr const bool ROUTER = true;
+#else
+	static constexpr const bool ROUTER = false;
+#endif
+
 	explicit ZigbeeDevice(ZigbeeListener &listener);
 	~ZigbeeDevice() = delete;
 
@@ -172,11 +178,6 @@ public:
 	std::shared_ptr<const std::map<uint16_t,ZigbeeNeighbour>> get_neighbours();
 
 private:
-#ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
-	static constexpr const bool ROUTER = true;
-#else
-	static constexpr const bool ROUTER = false;
-#endif
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
