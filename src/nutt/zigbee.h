@@ -22,7 +22,6 @@
 #include <sdkconfig.h>
 
 #include <functional>
-#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -53,7 +52,7 @@ private:
 	std::vector<char> value_;
 };
 
-static inline std::string zigbee_address_string(esp_zb_ieee_addr_t address) {
+static inline std::string zigbee_address_string(const esp_zb_ieee_addr_t address) {
 	std::vector<char> data(24);
 
 	snprintf(data.data(), data.size(),
@@ -138,14 +137,14 @@ enum class ZigbeeNeighbourRelationship : uint8_t {
 	PARENT,
 	CHILD,
 	SIBLING,
-	OTHER,
+	NONE,
 	FORMER_CHILD,
 	UNAUTH_CHILD,
 	UNKNOWN,
 };
 
 struct ZigbeeNeighbour {
-	std::string long_addr;
+	uint16_t short_addr;
 	ZigbeeDeviceType type;
 
 	uint8_t depth;
@@ -153,6 +152,8 @@ struct ZigbeeNeighbour {
 
 	uint8_t lqi;
 	int8_t rssi;
+
+	esp_zb_ieee_addr_t long_addr;
 };
 
 class ZigbeeDevice {
@@ -175,7 +176,7 @@ public:
 	void join_network();
 	void join_or_leave_network();
 	void leave_network();
-	std::shared_ptr<const std::map<uint16_t,ZigbeeNeighbour>> get_neighbours();
+	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
 
 private:
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
@@ -212,8 +213,8 @@ private:
 	uint8_t zb_buffer_;
 	uint16_t neighbour_table_update_count_;
 	std::mutex neighbours_mutex_;
-	std::shared_ptr<std::map<uint16_t,ZigbeeNeighbour>> neighbours_;
-	std::shared_ptr<std::map<uint16_t,ZigbeeNeighbour>> new_neighbours_;
+	std::shared_ptr<std::vector<ZigbeeNeighbour>> neighbours_;
+	std::shared_ptr<std::vector<ZigbeeNeighbour>> new_neighbours_;
 };
 
 class ZigbeeListener {

@@ -144,7 +144,7 @@ void Device::print_neighbours() {
 
 	ESP_LOGI(TAG, "Neighbours (%zu):", neighbours->size());
 
-	for (auto& [short_addr, neighbour] : *neighbours) {
+	for (auto &neighbour : *neighbours) {
 		char type = '_';
 		char relationship = '_';
 
@@ -179,8 +179,8 @@ void Device::print_neighbours() {
 			relationship = 'S';
 			break;
 
-		case ZigbeeNeighbourRelationship::OTHER:
-			relationship = 'O';
+		case ZigbeeNeighbourRelationship::NONE:
+			relationship = '_';
 			break;
 
 		case ZigbeeNeighbourRelationship::FORMER_CHILD:
@@ -192,13 +192,14 @@ void Device::print_neighbours() {
 			break;
 
 		case ZigbeeNeighbourRelationship::UNKNOWN:
-			relationship = '_';
+			relationship = '?';
 			break;
 		}
 
 		ESP_LOGI(TAG, "%s/%04x %c %u %c LQI %u RSSI %d",
-			neighbour.long_addr.c_str(), short_addr, type, neighbour.depth,
-			relationship, neighbour.lqi, neighbour.rssi);
+			zigbee_address_string(neighbour.long_addr).c_str(),
+			neighbour.short_addr, type, neighbour.depth, relationship,
+			neighbour.lqi, neighbour.rssi);
 	}
 }
 

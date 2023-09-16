@@ -88,7 +88,7 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 	esp_zb_init(&config);
 
 	endpoint_list_ = esp_zb_ep_list_create();
-	neighbours_ = std::make_shared<std::map<uint16_t,ZigbeeNeighbour>>();
+	neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
 }
 
 void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
@@ -435,7 +435,7 @@ void ZigbeeDevice::leave_network() {
 	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::LEAVE), 0);
 }
 
-std::shared_ptr<const std::map<uint16_t,ZigbeeNeighbour>> ZigbeeDevice::get_neighbours() {
+std::shared_ptr<const std::vector<ZigbeeNeighbour>> ZigbeeDevice::get_neighbours() {
 	std::lock_guard lock{neighbours_mutex_};
 	return neighbours_;
 }
@@ -500,7 +500,8 @@ void ZigbeeDevice::scheduled_refresh_neighbours(uint8_t param) {
 	args->index = 0;
 	zb_buf_set_status(instance_->zb_buffer_, RET_OK);
 
-	instance_->new_neighbours_ = std::make_shared<std::map<uint16_t,ZigbeeNeighbour>>();
+	instance_->new_neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
+	instance_->new_neighbours_->reserve(instance_->neighbours_->size());
 
 	zb_nwk_nbr_iterator_next(instance_->zb_buffer_, refresh_neighbours_cb);
 }
@@ -547,7 +548,7 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		} else if (entry->relationship == 2) {
 			relationship = ZigbeeNeighbourRelationship::SIBLING;
 		} else if (entry->relationship == 3) {
-			relationship = ZigbeeNeighbourRelationship::OTHER;
+			relationship = ZigbeeNeighbourRelationship::NONE;
 		} else if (entry->relationship == 4) {
 			relationship = ZigbeeNeighbourRelationship::FORMER_CHILD;
 		} else if (entry->relationship == 5) {
@@ -555,12 +556,10 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		}
 
 		auto addr = entry->short_addr;
-		auto neighbour = ZigbeeNeighbour{
-				zigbee_address_string(entry->ieee_addr),
-				type, entry->depth, relationship, entry->lqi,
-				entry->rssi
-		};
-		instance_->new_neighbours_->emplace(addr, std::move(neighbour));
+		auto neighbour = ZigbeeNeighbour{ addr, type, entry->depth, relationship,
+			entry->lqi, entry->rssi, {} };
+		std::memcpy(neighbour.long_addr, entry->ieee_addr, sizeof(neighbour.long_addr));
+		instance_->new_neighbours_->emplace_back(std::move(neighbour));
 
 		args->index++;
 		zb_nwk_nbr_iterator_next(buffer, refresh_neighbours_cb);
