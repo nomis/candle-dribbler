@@ -293,19 +293,13 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 
 		if (state_ != ZigbeeState::INIT) {
 			if (network_configured_ || state_ >= ZigbeeState::CONNECTING) {
-				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
-
 				if (status == ESP_OK) {
-					ESP_LOGD(TAG, "Connecting (%s)", esp_zb_zdo_signal_to_string(type));
-					update_state(ZigbeeState::CONNECTING);
-					ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(
+					connect(esp_zb_zdo_signal_to_string(type),
 						type == ESP_ZB_ZDO_SIGNAL_SKIP_STARTUP
-						? ESP_ZB_BDB_MODE_INITIALIZATION
-						: ESP_ZB_BDB_MODE_NETWORK_STEERING));
+							? ESP_ZB_BDB_MODE_INITIALIZATION
+							: ESP_ZB_BDB_MODE_NETWORK_STEERING);
 				} else {
-					ESP_LOGD(TAG, "Retry");
-					update_state(ZigbeeState::RETRY);
-					esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+					retry();
 				}
 			} else {
 				ESP_LOGI(TAG, "Waiting for pairing button press (%s)", esp_zb_zdo_signal_to_string(type));
@@ -345,10 +339,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 			network_failed_ = true;
 
 			if (network_configured_ || state_ >= ZigbeeState::CONNECTING) {
-				ESP_LOGD(TAG, "Retry");
-				update_state(ZigbeeState::RETRY);
-				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
-				esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+				retry();
 			}
 		}
 		break;
@@ -362,8 +353,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 			if (params && params->leave_type == ESP_ZB_NWK_LEAVE_TYPE_REJOIN) {
 				ESP_LOGE(TAG, "Device rejoin");
 				update_state(ZigbeeState::RETRY, false);
-				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
-				esp_zb_scheduler_alarm(start_top_level_commissioning, 0, 1000);
+				retry(true);
 			} else {
 				if (!params) {
 					ESP_LOGE(TAG, "Device removed");
@@ -374,7 +364,7 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 				}
 
 				ESP_LOGI(TAG, "Waiting for pairing button press");
-				esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, 0);
+				cancel_retry();
 				update_state(ZigbeeState::DISCONNECTED, false);
 			}
 		}
@@ -415,11 +405,34 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 	}
 }
 
-void ZigbeeDevice::start_top_level_commissioning(uint8_t mode_mask) {
+void ZigbeeDevice::connect(const char *why, uint8_t mode) {
+	cancel_retry();
+
+	ESP_LOGD(TAG, "Connecting (%s)", why);
+	instance_->update_state(ZigbeeState::CONNECTING);
+
+	esp_err_t err = esp_zb_bdb_start_top_level_commissioning(mode);
+	if (err != ESP_OK) {
+		ESP_LOGE(TAG, "Error connecting: %d", err);
+		retry();
+	}
+}
+
+void ZigbeeDevice::retry(bool quiet) {
+	if (!quiet) {
+		ESP_LOGD(TAG, "Retry");
+	}
+	instance_->update_state(ZigbeeState::RETRY);
+	esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+}
+
+void ZigbeeDevice::cancel_retry() {
+	esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
+}
+
+void ZigbeeDevice::start_top_level_commissioning(uint8_t mode) {
 	if (instance_->state_ == ZigbeeState::RETRY) {
-		ESP_LOGD(TAG, "Connecting (retry)");
-		instance_->update_state(ZigbeeState::CONNECTING);
-		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(mode_mask));
+		instance_->connect("retry", mode);
 	}
 }
 
@@ -541,14 +554,12 @@ void ZigbeeDevice::join_or_leave_network(ZigbeeAction action) {
 		return;
 	}
 
-	esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
+	cancel_retry();
 
 	network_failed_ = false;
 
 	if (action == ZigbeeAction::JOIN) {
-		ESP_LOGI(TAG, "Connecting (join network)");
-		instance_->update_state(ZigbeeState::CONNECTING);
-		ESP_ERROR_CHECK(esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING));
+		connect("join network", ESP_ZB_BDB_MODE_NETWORK_STEERING);
 	} else if (action == ZigbeeAction::LEAVE) {
 		ESP_LOGI(TAG, "Leave network");
 		esp_zb_zdo_mgmt_leave_req_param_t param{};

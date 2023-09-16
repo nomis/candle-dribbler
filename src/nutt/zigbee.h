@@ -199,6 +199,9 @@ private:
 	static void print_bindings_cb(uint8_t buffer);
 
 	void run();
+	void connect(const char *why, uint8_t mode);
+	void retry(bool quiet = false);
+	void cancel_retry();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
 
 	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);
