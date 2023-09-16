@@ -74,20 +74,30 @@ static inline std::string zigbee_address_string(const uint16_t address) {
 class ZigbeeCluster {
 protected:
 	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role);
+	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, std::vector<uint16_t> attrs);
 	~ZigbeeCluster() = default;
 
 public:
+	static constexpr const char *TAG = "nutt.ZigbeeCluster";
+
 	inline uint16_t id() const { return id_; }
 	inline esp_zb_zcl_cluster_role_t role() const { return role_; }
+	inline const std::vector<uint16_t>& attrs() const { return attrs_; }
+
 	void attach(ZigbeeEndpoint &endpoint);
 	virtual void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) = 0;
+	void configure_reporting();
 
 	virtual esp_err_t set_attr_value(uint16_t attr_id, const esp_zb_zcl_attribute_data_t *data);
 	void update_attr_value(uint16_t attr_id, void *value);
 
 private:
+	static constexpr uint16_t MIN_INTERVAL = 0;
+	static constexpr uint16_t MAX_INTERVAL = 900;
+
 	const uint16_t id_;
 	const esp_zb_zcl_cluster_role_t role_;
+	const std::vector<uint16_t> attrs_;
 	ZigbeeEndpoint *ep_{nullptr};
 };
 
@@ -109,6 +119,7 @@ public:
 	void add(ZigbeeCluster &cluster);
 	void attach(ZigbeeDevice &device);
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list);
+	void configure_reporting();
 	esp_err_t set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 		const esp_zb_zcl_attribute_data_t *data);
 
@@ -202,6 +213,8 @@ private:
 	void connect(const char *why, uint8_t mode);
 	void retry(bool quiet = false);
 	void cancel_retry();
+	void connected();
+	void disconnected();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
 
 	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);

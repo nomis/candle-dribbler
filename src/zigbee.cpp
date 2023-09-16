@@ -126,6 +126,19 @@ void ZigbeeDevice::run() {
 	esp_restart();
 }
 
+void ZigbeeDevice::connected() {
+	esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
+	esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+
+	for (auto& [ep_id, ep] : endpoints_) {
+		ep.configure_reporting();
+	}
+}
+
+void ZigbeeDevice::disconnected() {
+	esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
+}
+
 esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message) {
 	if (message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
 		esp_err_t ret = ESP_ERR_INVALID_ARG;
@@ -331,9 +344,6 @@ inline void ZigbeeDevice::signal_handler(esp_zb_app_signal_type_t type,
 					pan_id, esp_zb_get_current_channel(), short_address);
 			network_failed_ = false;
 			update_state(ZigbeeState::CONNECTED, true);
-
-			esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
-			esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
 		} else {
 			ESP_LOGW(TAG, "Failed to connect (%s, %d)", esp_zb_zdo_signal_to_string(type), status);
 			network_failed_ = true;
@@ -571,7 +581,13 @@ void ZigbeeDevice::join_or_leave_network(ZigbeeAction action) {
 }
 
 void ZigbeeDevice::update_state(ZigbeeState state) {
+	if (state_ == ZigbeeState::CONNECTED && state != ZigbeeState::CONNECTED) {
+		disconnected();
+	}
 	state_ = state;
+	if (state_ == ZigbeeState::CONNECTED) {
+		connected();
+	}
 	listener_.zigbee_network_state(network_configured_, state_, network_failed_);
 }
 
@@ -723,8 +739,42 @@ esp_err_t ZigbeeEndpoint::set_attr_value(uint16_t cluster_id, uint16_t attr_id,
 	}
 }
 
+void ZigbeeEndpoint::configure_reporting() {
+	for (auto& [cluster_id, cluster] : clusters_) {
+		cluster.configure_reporting();
+	}
+}
+
+void ZigbeeCluster::configure_reporting() {
+	if (role_ != ESP_ZB_ZCL_CLUSTER_SERVER_ROLE)
+		return;
+
+	for (auto attr : attrs_) {
+		auto *rep_info = zb_zcl_find_reporting_info(ep_->id(), id_, role(), attr);
+
+		if (!rep_info)
+			continue;
+
+		rep_info->u.send_info.min_interval = MIN_INTERVAL;
+		rep_info->u.send_info.max_interval = MAX_INTERVAL;
+		rep_info->u.send_info.def_min_interval = MIN_INTERVAL;
+		rep_info->u.send_info.def_max_interval = MAX_INTERVAL;
+
+		zb_ret_t ret = zb_zcl_put_reporting_info(rep_info, ZB_TRUE);
+
+		if (ret != RET_OK) {
+			ESP_LOGE(TAG, "%s: Unable to configure reporting for %u/%04x/%04x: %d",
+				__func__, ep_->id(), id_, attr, ret);
+		}
+	}
+}
+
 ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role)
 		: id_(id), role_(role) {
+}
+
+ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, std::vector<uint16_t> attrs)
+		: id_(id), role_(role), attrs_(attrs) {
 }
 
 void ZigbeeCluster::attach(ZigbeeEndpoint &ep) {

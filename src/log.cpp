@@ -68,6 +68,7 @@ void Logging::configure_app(esp_log_level_t level) {
 	esp_log_level_set(nutt::Light::TAG, level);
 	esp_log_level_set(nutt::UserInterface::TAG, level);
 	esp_log_level_set(nutt::ZigbeeDevice::TAG, level);
+	esp_log_level_set(nutt::ZigbeeCluster::TAG, level);
 	esp_log_level_set(nutt::WakeupThread::TAG, level);
 }
 

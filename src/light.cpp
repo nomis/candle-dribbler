@@ -312,8 +312,8 @@ void ScenesCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) 
 
 BooleanCluster::BooleanCluster(Light &light, const char *name,
 		uint16_t cluster_id, uint16_t attr_id) : ZigbeeCluster(cluster_id,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE), light_(light), name_(name),
-			attr_id_(attr_id) {
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, {attr_id}), light_(light),
+			name_(name), attr_id_(attr_id) {
 }
 
 void BooleanCluster::configure_light_cluster_list(esp_zb_cluster_list_t &cluster_list) {
