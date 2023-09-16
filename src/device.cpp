@@ -139,6 +139,10 @@ void Device::leave_network() {
 	zigbee_.leave_network();
 }
 
+void Device::print_bindings() {
+	zigbee_.print_bindings();
+}
+
 void Device::print_neighbours() {
 	auto neighbours = zigbee_.get_neighbours();
 

@@ -181,6 +181,8 @@ void UserInterface::uart_handler() {
 				logging_.set_app_level(static_cast<esp_log_level_t>(buf[0] - '1' + 1));
 			} else if (buf[0] >= '6' && buf[0] <= '9') {
 				logging_.set_sys_level(static_cast<esp_log_level_t>(buf[0] - '6' + 1));
+			} else if (device && buf[0] == 'b') {
+				device->print_bindings();
 			} else if (buf[0] == 'C') {
 				crash();
 			} else if (buf[0] == 'd') {

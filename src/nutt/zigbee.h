@@ -63,6 +63,14 @@ static inline std::string zigbee_address_string(const esp_zb_ieee_addr_t address
 	return {data.data()};
 }
 
+static inline std::string zigbee_address_string(const uint16_t address) {
+	std::vector<char> data(5);
+
+	snprintf(data.data(), data.size(), "%04x", address);
+
+	return {data.data()};
+}
+
 class ZigbeeCluster {
 protected:
 	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role);
@@ -177,6 +185,7 @@ public:
 	void join_or_leave_network();
 	void leave_network();
 	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
+	void print_bindings();
 
 private:
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
@@ -186,6 +195,8 @@ private:
 	static void scheduled_network_do(uint8_t param);
 	static void scheduled_refresh_neighbours(uint8_t param);
 	static void refresh_neighbours_cb(uint8_t buffer);
+	static void scheduled_print_bindings(uint8_t param);
+	static void print_bindings_cb(uint8_t buffer);
 
 	void run();
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);

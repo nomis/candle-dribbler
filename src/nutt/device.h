@@ -131,6 +131,7 @@ public:
 	void join_network();
 	void join_or_leave_network();
 	void leave_network();
+	void print_bindings();
 	void print_neighbours();
 
 	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster, int app_index);

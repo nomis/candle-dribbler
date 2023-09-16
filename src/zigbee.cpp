@@ -435,6 +435,84 @@ void ZigbeeDevice::leave_network() {
 	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::LEAVE), 0);
 }
 
+void ZigbeeDevice::print_bindings() {
+	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_print_bindings, 0, 0);
+}
+
+void ZigbeeDevice::scheduled_print_bindings(uint8_t param) {
+	uint8_t buffer = zb_buf_get_out();
+	if (buffer == ZB_BUF_INVALID)
+		return;
+
+	zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
+	args->start_index = 0;
+	args->dst_addr = esp_zb_get_short_address();
+	zb_buf_set_status(buffer, RET_OK);
+
+	zb_ret_t ret = zb_zdo_mgmt_bind_req(buffer, print_bindings_cb);
+	if (ret == 0xFF) {
+		ESP_LOGE(TAG, "Error getting bindings (start_index=%u)", args->start_index);
+		zb_buf_free(buffer);
+	}
+}
+
+void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
+	if (zb_buf_get_status(buffer) != RET_OK) {
+		ESP_LOGE(TAG, "Buffer error getting bindings");
+		zb_buf_free(buffer);
+		return;
+	}
+
+	zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
+	zb_zdo_mgmt_bind_resp_t *resp = reinterpret_cast<zb_zdo_mgmt_bind_resp_t*>(zb_buf_begin(buffer));
+	zb_zdo_binding_table_record_t *entry = reinterpret_cast<zb_zdo_binding_table_record_t*>(
+		reinterpret_cast<uint8_t*>(zb_buf_begin(buffer)) + sizeof(zb_zdo_mgmt_bind_resp_t));
+
+	if (resp->status != 0) {
+		ESP_LOGE(TAG, "Error getting bindings (status=%u)", resp->status);
+	} else if (resp->binding_table_list_count > 0) {
+		if (resp->start_index == 0) {
+			ESP_LOGI(TAG, "Bindings (%u):", resp->binding_table_entries);
+		}
+
+		for (size_t i = 0; resp->start_index < resp->binding_table_entries
+				&& i < resp->binding_table_list_count; i++) {
+			ESP_LOGI(TAG, "[%03u] %s/%u/%04x -> %s/%u",
+				resp->start_index,
+				zigbee_address_string(entry->src_address).c_str(),
+				entry->src_endp, entry->cluster_id,
+				(entry->dst_addr_mode == ZB_BIND_DST_ADDR_MODE_16_BIT_GROUP
+					? zigbee_address_string(entry->dst_address.addr_short).c_str()
+					: zigbee_address_string(entry->dst_address.addr_long).c_str()),
+					entry->dst_endp);
+			resp->start_index++;
+			entry++;
+		}
+
+		if (resp->start_index > 0
+				&& resp->start_index < resp->binding_table_entries) {
+			uint8_t next_index = resp->start_index;
+
+			zb_buf_reuse(buffer);
+			args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
+			args->start_index = next_index;
+			args->dst_addr = esp_zb_get_short_address();
+			zb_buf_set_status(buffer, RET_OK);
+
+			zb_ret_t ret = zb_zdo_mgmt_bind_req(buffer, print_bindings_cb);
+			if (ret == ZB_ZDO_INVALID_TSN) {
+				ESP_LOGE(TAG, "Error getting bindings (start_index=%u)", args->start_index);
+			} else {
+				return;
+			}
+		}
+	} else if (resp->start_index == 0) {
+		ESP_LOGI(TAG, "No bindings");
+	}
+
+	zb_buf_free(buffer);
+}
+
 std::shared_ptr<const std::vector<ZigbeeNeighbour>> ZigbeeDevice::get_neighbours() {
 	std::lock_guard lock{neighbours_mutex_};
 	return neighbours_;
