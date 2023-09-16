@@ -130,12 +130,16 @@ UART Commands
      - Set application log level to ERROR..VERBOSE (persistent)
    * - ``6``\ ..\ ``9``
      - Set system log level to ERROR..DEBUG (persistent)
+   * - ``b``
+     - Print cluster binding table
    * - ``j``
      - Join Zigbee network (no effect if already joined/joining)
    * - ``l``
      - Leave Zigbee network (no effect if already left)
    * - ``m``
      - Print memory information
+   * - ``n``
+     - Print Zigbee neighbours
    * - ``t``
      - Print task list and stats
    * - ``R``
