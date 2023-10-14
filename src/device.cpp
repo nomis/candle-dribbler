@@ -538,7 +538,8 @@ uint16_t UptimeCluster::units_{70}; /* Time - Days */
 
 UptimeCluster::UptimeCluster()
 		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			{ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID}) {
 }
 
 void UptimeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
@@ -577,7 +578,8 @@ uint32_t UplinkCluster::app_type_{
 
 UplinkCluster::UplinkCluster()
 		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_MULTI_VALUE,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			{ESP_ZB_ZCL_ATTR_MULTI_VALUE_PRESENT_VALUE_ID}) {
 }
 
 void UplinkCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
@@ -612,7 +614,8 @@ uint16_t RSSICluster::units_{199}; /* Decibels */
 
 RSSICluster::RSSICluster()
 		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			{ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID}) {
 }
 
 void RSSICluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
