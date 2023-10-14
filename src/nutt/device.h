@@ -44,7 +44,6 @@ public:
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 	void reload_app_info();
-	void update_uptime();
 
 private:
 	static constexpr const char *TAG = "nutt.Device";
@@ -92,6 +91,21 @@ private:
 	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = 0;
 	static constexpr const uint32_t OTA_FILE_VERSION = 0;
 #endif
+};
+
+class UptimeCluster: public ZigbeeCluster {
+public:
+	UptimeCluster();
+	~UptimeCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	uint32_t update();
+
+private:
+	static uint32_t app_type_;
+	static uint16_t units_;
+
+	float uptime_{0};
 };
 
 class SoftwareCluster: public ZigbeeCluster {
@@ -167,6 +181,7 @@ private:
 	std::vector<const esp_partition_t*> parts_;
 	device::BasicCluster basic_cl_;
 	device::IdentifyCluster identify_cl_;
+	device::UptimeCluster uptime_cl_;
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::unordered_map<uint8_t,Light&> lights_;
 	bool ota_validated_{false};

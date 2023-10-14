@@ -27,6 +27,7 @@
 #include <esp_ota_ops.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <functional>
 #include <string>
@@ -40,6 +41,8 @@
 #include "nutt/ui.h"
 #include "nutt/util.h"
 #include "nutt/zigbee.h"
+
+using namespace std::chrono_literals;
 
 namespace nutt {
 
@@ -68,7 +71,7 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 	}
 
 	auto &main_ep = *new ZigbeeEndpoint{MAIN_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
-		ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {basic_cl_, identify_cl_}};
+		ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {basic_cl_, identify_cl_, uptime_cl_}};
 
 	if (OTA_SUPPORTED) {
 		ESP_LOGD(TAG, "OTA supported");
@@ -107,7 +110,7 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 
 void Device::start() {
 	zigbee_.start();
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 0);
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, std::chrono::milliseconds(1min).count());
 
 	std::thread t;
 	make_thread(t, "device_main", 4096, 19, &Device::run_loop, this);
@@ -208,8 +211,7 @@ void Device::print_neighbours() {
 }
 
 void Device::scheduled_uptime(uint8_t param) {
-	instance_->basic_cl_.update_uptime();
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, 60000);
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, instance_->uptime_cl_.update());
 }
 
 unsigned long Device::run_tasks() {
@@ -417,9 +419,6 @@ void BasicCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
 	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
 		ESP_ZB_ZCL_ATTR_BASIC_GENERIC_DEVICE_TYPE_ID, &device_type_));
 
-	ESP_ERROR_CHECK(esp_zb_basic_cluster_add_attr(basic_cluster,
-		ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID, ZigbeeString{std::string{16, ' '}}.data()));
-
 	std::string serial_number;
 	esp_chip_info_t chip{};
 	uint8_t mac[8] = { 0 };
@@ -462,13 +461,6 @@ void BasicCluster::reload_app_info() {
 	ESP_LOGD(TAG, "Label: %s", label.c_str());
 	update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_PRODUCT_LABEL_ID,
 		ZigbeeString{label, Device::MAX_STRING_LENGTH}.data());
-}
-
-void BasicCluster::update_uptime() {
-	auto uptime = duration_us_to_string(esp_timer_get_time());
-
-	update_attr_value(ESP_ZB_ZCL_ATTR_BASIC_LOCATION_DESCRIPTION_ID,
-		ZigbeeString{uptime, Device::MAX_STRING_LENGTH}.data());
 }
 
 IdentifyCluster::IdentifyCluster(UserInterface &ui)
@@ -517,6 +509,47 @@ void UpgradeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list)
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_ota_cluster(&cluster_list,
 		ota_cluster, role()));
+}
+
+uint32_t UptimeCluster::app_type_{
+	  (  0x00 << 24)  /* Group: Analog Input    */
+	| (  0x0E << 16)  /* Type:  Time in Seconds */
+	|  0x0000         /* Index: Relative time   */
+};
+
+uint16_t UptimeCluster::units_{70}; /* Time - Days */
+
+UptimeCluster::UptimeCluster()
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+}
+
+void UptimeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_attribute_list_t *input_cluster = esp_zb_analog_input_cluster_create(nullptr);
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID, &app_type_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_ENGINEERING_UNITS_ID, &units_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID,
+			ZigbeeString("Uptime").data()));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_analog_input_cluster(&cluster_list,
+		input_cluster, role()));
+}
+
+uint32_t UptimeCluster::update() {
+	uint64_t uptime_us = esp_timer_get_time();
+
+	uptime_ = uptime_us / static_cast<float>(std::chrono::microseconds(24h).count());
+	update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, &uptime_);
+
+	return uptime_us < std::chrono::microseconds(1h).count()
+		? std::chrono::milliseconds(1min).count()
+		: std::chrono::milliseconds(1h).count();
 }
 
 SoftwareCluster::SoftwareCluster(Device &device, size_t index)
