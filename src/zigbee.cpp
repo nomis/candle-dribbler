@@ -537,6 +537,10 @@ void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
 	zb_buf_free(buffer);
 }
 
+uint16_t ZigbeeDevice::get_parent() {
+	return zb_nwk_get_parent();
+}
+
 std::shared_ptr<const std::vector<ZigbeeNeighbour>> ZigbeeDevice::get_neighbours() {
 	std::lock_guard lock{neighbours_mutex_};
 	return neighbours_;

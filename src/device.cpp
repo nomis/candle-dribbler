@@ -385,13 +385,11 @@ void Device::zigbee_ota_update(bool ok, bool app_changed) {
 }
 
 void Device::zigbee_neighbours_updated(const std::shared_ptr<const std::vector<ZigbeeNeighbour>> &neighbours) {
-	uint16_t uplink = 0xffff;
+	uint16_t uplink = zigbee_.get_parent();
 	int8_t rssi = -128;
 
 	for (const auto &neighbour : *neighbours) {
-		if (neighbour.relationship == ZigbeeNeighbourRelationship::PARENT
-				&& lqi > 0 && rssi <= 0) {
-			uplink = neighbour.short_addr;
+		if (neighbour.short_addr == uplink) {
 			rssi = neighbour.rssi;
 		}
 	}

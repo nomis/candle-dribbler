@@ -195,6 +195,7 @@ public:
 	void join_network();
 	void join_or_leave_network();
 	void leave_network();
+	uint16_t get_parent();
 	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
 	void print_bindings();
 
