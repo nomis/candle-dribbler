@@ -29,6 +29,7 @@ extern "C" {
 
 #include <algorithm>
 #include <cstring>
+#include <mutex>
 #include <set>
 #include <string_view>
 #include <thread>
@@ -681,9 +682,13 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		}
 	} else {
 		if (instance_->new_neighbours_) {
-			std::lock_guard lock{instance_->neighbours_mutex_};
-			instance_->neighbours_ = instance_->new_neighbours_;
+			std::unique_lock lock{instance_->neighbours_mutex_};
+			auto neighbours = instance_->new_neighbours_;
+			instance_->neighbours_ = neighbours;
 			instance_->new_neighbours_.reset();
+			lock.unlock();
+
+			instance_->listener_.zigbee_neighbours_updated(neighbours);
 		}
 
 		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);

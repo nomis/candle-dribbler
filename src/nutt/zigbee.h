@@ -250,9 +250,10 @@ protected:
 	~ZigbeeListener() = default;
 
 public:
-	virtual void zigbee_network_state(bool configured, ZigbeeState state, bool failed) = 0;
-	virtual void zigbee_network_error() = 0;
-	virtual void zigbee_ota_update(bool ok, bool app_changed = false) = 0;
+	virtual void zigbee_network_state(bool configured, ZigbeeState state, bool failed) {};
+	virtual void zigbee_network_error() {};
+	virtual void zigbee_ota_update(bool ok, bool app_changed = false) {};
+	virtual void zigbee_neighbours_updated(const std::shared_ptr<const std::vector<ZigbeeNeighbour>> &neighbours) {};
 };
 
 } // namespace nutt

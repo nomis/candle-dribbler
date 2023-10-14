@@ -99,6 +99,9 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 			ESP_ZB_AF_HA_PROFILE_ID, ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID,
 			software_cl});
 	}
+
+	zigbee_.add(*new ZigbeeEndpoint{UPLINK_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {uplink_cl_, rssi_cl_}});
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -381,6 +384,22 @@ void Device::zigbee_ota_update(bool ok, bool app_changed) {
 	}
 }
 
+void Device::zigbee_neighbours_updated(const std::shared_ptr<const std::vector<ZigbeeNeighbour>> &neighbours) {
+	uint16_t uplink = 0xffff;
+	int8_t rssi = -128;
+
+	for (const auto &neighbour : *neighbours) {
+		if (neighbour.relationship == ZigbeeNeighbourRelationship::PARENT
+				&& lqi > 0 && rssi <= 0) {
+			uplink = neighbour.short_addr;
+			rssi = neighbour.rssi;
+		}
+	}
+
+	uplink_cl_.update(uplink);
+	rssi_cl_.update(rssi);
+}
+
 namespace device {
 
 uint8_t BasicCluster::power_source_{0x04}; /* DC */
@@ -550,6 +569,79 @@ uint32_t UptimeCluster::update() {
 	return uptime_us < std::chrono::microseconds(1h).count()
 		? std::chrono::milliseconds(1min).count()
 		: std::chrono::milliseconds(1h).count();
+}
+
+uint32_t UplinkCluster::app_type_{
+	  (  0x0D << 24)  /* Group: Multistate Value */
+	| (  0xFF << 16)  /* Type:  Other            */
+	|  0x0000         /* Index: N/A              */
+};
+
+UplinkCluster::UplinkCluster()
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_MULTI_VALUE,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+}
+
+void UplinkCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_multistate_value_cluster_cfg_t config{};
+	config.number_of_states = 0xffff;
+	config.present_value = uplink_;
+
+	esp_zb_attribute_list_t *multistate_cluster = esp_zb_multistate_value_cluster_create(&config);
+
+	ESP_ERROR_CHECK(esp_zb_multistate_value_cluster_add_attr(multistate_cluster,
+			ESP_ZB_ZCL_ATTR_MULTI_VALUE_DESCRIPTION_ID,
+			ZigbeeString("Uplink").data()));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_multistate_value_cluster(&cluster_list,
+		multistate_cluster, role()));
+}
+
+void UplinkCluster::update(uint16_t uplink) {
+	if (uplink_ != uplink) {
+		uplink_ = uplink;
+		update_attr_value(ESP_ZB_ZCL_ATTR_MULTI_VALUE_PRESENT_VALUE_ID, &uplink_);
+	}
+}
+
+uint32_t RSSICluster::app_type_{
+	  (  0x00 << 24)  /* Group: Analog Input */
+	| (  0xFF << 16)  /* Type:  Other        */
+	|  0x0000         /* Index: N/A          */
+};
+
+uint16_t RSSICluster::units_{199}; /* Decibels */
+
+RSSICluster::RSSICluster()
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+}
+
+void RSSICluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_attribute_list_t *input_cluster = esp_zb_analog_input_cluster_create(nullptr);
+
+	ESP_ERROR_CHECK(esp_zb_cluster_update_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, &rssi_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID, &app_type_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_ENGINEERING_UNITS_ID, &units_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID,
+			ZigbeeString("RSSI").data()));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_analog_input_cluster(&cluster_list,
+		input_cluster, role()));
+}
+
+void RSSICluster::update(int8_t rssi) {
+	if (rssi_ != rssi) {
+		rssi_ = rssi;
+		update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, &rssi_);
+	}
 }
 
 SoftwareCluster::SoftwareCluster(Device &device, size_t index)

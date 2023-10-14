@@ -22,6 +22,7 @@
 #include <esp_attr.h>
 #include <esp_partition.h>
 
+#include <memory>
 #include <functional>
 #include <vector>
 
@@ -108,6 +109,35 @@ private:
 	float uptime_{0};
 };
 
+class UplinkCluster: public ZigbeeCluster {
+public:
+	UplinkCluster();
+	~UplinkCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void update(uint16_t uplink);
+
+private:
+	static uint32_t app_type_;
+
+	uint16_t uplink_{0xffff};
+};
+
+class RSSICluster: public ZigbeeCluster {
+public:
+	RSSICluster();
+	~RSSICluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void update(int8_t rssi);
+
+private:
+	static uint32_t app_type_;
+	static uint16_t units_;
+
+	float rssi_{-128};
+};
+
 class SoftwareCluster: public ZigbeeCluster {
 public:
 	SoftwareCluster(Device &device, size_t index);
@@ -133,7 +163,7 @@ public:
 	// cppcheck-suppress duplInheritedMember
 	static constexpr const char *TAG = "nutt.Device";
 	/* Assumes 2 OTA partitions are configured */
-	static constexpr const size_t NUM_EP_PER_DEVICE = 3;
+	static constexpr const size_t NUM_EP_PER_DEVICE = 4;
 	static constexpr const size_t MAX_DATE_CODE_LENGTH = 16;
 	static constexpr const size_t MAX_STRING_LENGTH = 70;
 
@@ -154,10 +184,12 @@ public:
 	void zigbee_network_state(bool configured, ZigbeeState state, bool failed) override;
 	void zigbee_network_error() override;
 	void zigbee_ota_update(bool ok, bool app_changed) override;
+	void zigbee_neighbours_updated(const std::shared_ptr<const std::vector<ZigbeeNeighbour>> &neighbours) override;
 
 private:
 	static constexpr const ep_id_t MAIN_EP_ID = 1;
 	static constexpr const ep_id_t SOFTWARE_BASE_EP_ID = 200;
+	static constexpr const ep_id_t UPLINK_EP_ID = 211;
 #ifdef CONFIG_NUTT_SUPPORT_OTA
 	static constexpr const bool OTA_SUPPORTED = true;
 #else
@@ -182,6 +214,8 @@ private:
 	device::BasicCluster basic_cl_;
 	device::IdentifyCluster identify_cl_;
 	device::UptimeCluster uptime_cl_;
+	device::UplinkCluster uplink_cl_;
+	device::RSSICluster rssi_cl_;
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::unordered_map<uint8_t,Light&> lights_;
 	bool ota_validated_{false};
