@@ -289,6 +289,18 @@ The sensor cluster endpoints are in the following order:
    * - Type
      - Endpoint
      - Name
+   * - Analoginput
+     - 1
+     - Uptime (days)
+   * - Analoginput
+     - 210
+     - Connected time (days)
+   * - Analoginput
+     - 211
+     - Uplink address
+   * - Analoginput
+     - 212
+     - Uplink RSSI (dB)
    * - Binaryinput
      - 11
      - Switch 1
