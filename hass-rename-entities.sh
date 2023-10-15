@@ -90,22 +90,22 @@ function generate_file() {
 	old="sensor.${OLD}_analoginput"
 	new="sensor.${NEW}_uptime"
 	[ -n "$OLD" ] || old="$new"
-	echo "  \"${old}\": [\"${new}\", \"${NAME} Uptime\"],"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Uptime (days)\"],"
 
 	old="sensor.${OLD}_analoginput_2"
-	new="sensor.${NEW}_connected"
+	new="sensor.${NEW}_connected_time"
 	[ -n "$OLD" ] || old="$new"
-	echo "  \"${old}\": [\"${new}\", \"${NAME} Connected\"],"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Connected time (days)\"],"
 
 	old="sensor.${OLD}_analoginput_3"
-	new="sensor.${NEW}_uplink"
+	new="sensor.${NEW}_uplink_address"
 	[ -n "$OLD" ] || old="$new"
-	echo "  \"${old}\": [\"${new}\", \"${NAME} Uplink\"],"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Uplink address\"],"
 
 	old="sensor.${OLD}_analoginput_4"
 	new="sensor.${NEW}_uplink_rssi"
 	[ -n "$OLD" ] || old="$new"
-	echo "  \"${old}\": [\"${new}\", \"${NAME} RSSI\"],"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Uplink RSSI\"],"
 
 	old="sensor.${OLD}_lqi"
 	new="sensor.${NEW}_lqi"
