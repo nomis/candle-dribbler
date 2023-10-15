@@ -119,8 +119,9 @@ public:
 
 private:
 	static uint32_t app_type_;
+	static uint16_t units_;
 
-	uint16_t uplink_{0xffff};
+	float uplink_{0xffff};
 };
 
 class RSSICluster: public ZigbeeCluster {
@@ -163,7 +164,7 @@ public:
 	// cppcheck-suppress duplInheritedMember
 	static constexpr const char *TAG = "nutt.Device";
 	/* Assumes 2 OTA partitions are configured */
-	static constexpr const size_t NUM_EP_PER_DEVICE = 4;
+	static constexpr const size_t NUM_EP_PER_DEVICE = 5;
 	static constexpr const size_t MAX_DATE_CODE_LENGTH = 16;
 	static constexpr const size_t MAX_STRING_LENGTH = 70;
 
@@ -189,7 +190,8 @@ public:
 private:
 	static constexpr const ep_id_t MAIN_EP_ID = 1;
 	static constexpr const ep_id_t SOFTWARE_BASE_EP_ID = 200;
-	static constexpr const ep_id_t UPLINK_EP_ID = 211;
+	static constexpr const ep_id_t UPLINK_PARENT_EP_ID = 211;
+	static constexpr const ep_id_t UPLINK_RSSI_EP_ID = 212;
 #ifdef CONFIG_NUTT_SUPPORT_OTA
 	static constexpr const bool OTA_SUPPORTED = true;
 #else
