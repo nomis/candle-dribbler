@@ -109,6 +109,24 @@ private:
 	float uptime_{0};
 };
 
+class ConnectedCluster: public ZigbeeCluster {
+public:
+	ConnectedCluster();
+	~ConnectedCluster() = default;
+
+	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
+	void connected();
+	void disconnected();
+	uint32_t update();
+
+private:
+	static uint32_t app_type_;
+	static uint16_t units_;
+
+	uint64_t connect_time_us_{0};
+	float connected_{0};
+};
+
 class UplinkCluster: public ZigbeeCluster {
 public:
 	UplinkCluster();
@@ -190,6 +208,7 @@ public:
 private:
 	static constexpr const ep_id_t MAIN_EP_ID = 1;
 	static constexpr const ep_id_t SOFTWARE_BASE_EP_ID = 200;
+	static constexpr const ep_id_t CONNECTED_EP_ID = 210;
 	static constexpr const ep_id_t UPLINK_PARENT_EP_ID = 211;
 	static constexpr const ep_id_t UPLINK_RSSI_EP_ID = 212;
 #ifdef CONFIG_NUTT_SUPPORT_OTA
@@ -200,6 +219,7 @@ private:
 
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_uptime(uint8_t param);
+	static void scheduled_connected(uint8_t param);
 
 	void reload_app_info(bool full);
 	void do_refresh(uint8_t light);
@@ -216,6 +236,7 @@ private:
 	device::BasicCluster basic_cl_;
 	device::IdentifyCluster identify_cl_;
 	device::UptimeCluster uptime_cl_;
+	device::ConnectedCluster connected_cl_;
 	device::UplinkCluster uplink_cl_;
 	device::RSSICluster rssi_cl_;
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;

@@ -105,6 +105,9 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 
 	zigbee_.add(*new ZigbeeEndpoint{UPLINK_PARENT_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
 			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {uplink_cl_}});
+
+	zigbee_.add(*new ZigbeeEndpoint{UPLINK_RSSI_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
+			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {rssi_cl_}});
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -218,6 +221,10 @@ void Device::print_neighbours() {
 
 void Device::scheduled_uptime(uint8_t param) {
 	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, instance_->uptime_cl_.update());
+}
+
+void Device::scheduled_connected(uint8_t param) {
+	esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, instance_->connected_cl_.update());
 }
 
 unsigned long Device::run_tasks() {
@@ -372,6 +379,14 @@ void Device::zigbee_network_state(bool configured, ZigbeeState state,
 			ota_validated_ = true;
 			reload_app_info(false);
 		}
+
+		connected_cl_.connected();
+		esp_zb_scheduler_alarm_cancel(&Device::scheduled_connected, 0);
+		esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, 1000);
+	} else {
+		connected_cl_.disconnected();
+		esp_zb_scheduler_alarm_cancel(&Device::scheduled_connected, 0);
+		esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, 1000);
 	}
 }
 
@@ -571,6 +586,61 @@ uint32_t UptimeCluster::update() {
 	return uptime_us < std::chrono::microseconds(1h).count()
 		? std::chrono::milliseconds(1min).count()
 		: std::chrono::milliseconds(1h).count();
+}
+
+uint32_t ConnectedCluster::app_type_{
+	  (  0x00 << 24)  /* Group: Analog Input    */
+	| (  0x0E << 16)  /* Type:  Time in Seconds */
+	|  0x0000         /* Index: Relative time   */
+};
+
+uint16_t ConnectedCluster::units_{70}; /* Time - Days */
+
+ConnectedCluster::ConnectedCluster()
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
+			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+			{ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID}) {
+}
+
+void ConnectedCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
+	esp_zb_attribute_list_t *input_cluster = esp_zb_analog_input_cluster_create(nullptr);
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_APPLICATION_TYPE_ID, &app_type_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_ENGINEERING_UNITS_ID, &units_));
+
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID,
+			ZigbeeString("Connected").data()));
+
+	ESP_ERROR_CHECK(esp_zb_cluster_list_add_analog_input_cluster(&cluster_list,
+		input_cluster, role()));
+}
+
+void ConnectedCluster::connected() {
+	connect_time_us_ = esp_timer_get_time();
+}
+
+void ConnectedCluster::disconnected() {
+	connect_time_us_ = 0;
+}
+
+uint32_t ConnectedCluster::update() {
+	if (connect_time_us_) {
+		uint64_t connected_us = esp_timer_get_time() - connect_time_us_;
+
+		connected_ = connected_us / static_cast<float>(std::chrono::microseconds(24h).count());
+		update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, &connected_);
+
+		return connected_us < std::chrono::microseconds(1h).count()
+			? std::chrono::milliseconds(1min).count()
+			: std::chrono::milliseconds(1h).count();
+	} else {
+		connected_ = 0;
+		return std::chrono::milliseconds(1h).count();
+	}
 }
 
 uint32_t UplinkCluster::app_type_{
