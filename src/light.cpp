@@ -356,7 +356,7 @@ void BooleanCluster::configure_binary_input_cluster_list(esp_zb_cluster_list_t &
 
 	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
 			ESP_ZB_ZCL_ATTR_BINARY_INPUT_DESCRIPTION_ID,
-			ZigbeeString("Light " + std::to_string(light_.index())).data()));
+			ZigbeeString("Switch " + std::to_string(light_.index())).data()));
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_binary_input_cluster(&cluster_list,
 		input_cluster, role()));
