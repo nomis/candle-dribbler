@@ -87,6 +87,26 @@ function generate_file() {
 	[ -n "$OLD" ] || old="$new"
 	echo "  \"${old}\": [\"${new}\", \"${NAME} Identify\"],"
 
+	old="sensor.${OLD}_analoginput"
+	new="sensor.${NEW}_uptime"
+	[ -n "$OLD" ] || old="$new"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Uptime\"],"
+
+	old="sensor.${OLD}_analoginput_2"
+	new="sensor.${NEW}_connected"
+	[ -n "$OLD" ] || old="$new"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Connected\"],"
+
+	old="sensor.${OLD}_analoginput_3"
+	new="sensor.${NEW}_uplink"
+	[ -n "$OLD" ] || old="$new"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} Uplink\"],"
+
+	old="sensor.${OLD}_analoginput_4"
+	new="sensor.${NEW}_uplink_rssi"
+	[ -n "$OLD" ] || old="$new"
+	echo "  \"${old}\": [\"${new}\", \"${NAME} RSSI\"],"
+
 	old="sensor.${OLD}_lqi"
 	new="sensor.${NEW}_lqi"
 	[ -n "$OLD" ] || old="$new"
