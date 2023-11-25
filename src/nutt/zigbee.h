@@ -219,7 +219,7 @@ private:
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
 
 	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);
-	esp_err_t ota_upgrade(const esp_zb_zcl_ota_update_message_t *message);
+	esp_err_t ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t *message);
 
 	void update_state(ZigbeeState state);
 	void update_state(ZigbeeState state, bool configured);

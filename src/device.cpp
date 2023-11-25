@@ -534,13 +534,13 @@ void UpgradeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list)
 
 	esp_zb_attribute_list_t *ota_cluster = esp_zb_ota_cluster_create(&ota_config);
 
-	esp_zb_ota_upgrade_client_parameter_t ota_client_parameters{};
+	esp_zb_zcl_ota_upgrade_client_variable_t ota_client_parameters{};
 	ota_client_parameters.max_data_size = UINT8_MAX;
-	ota_client_parameters.query_timer = ESP_ZB_ZCL_OTA_UPGRADE_QUERY_TIMER_COUNT_DEF;
+	ota_client_parameters.timer_query = ESP_ZB_ZCL_OTA_UPGRADE_QUERY_TIMER_COUNT_DEF;
 
 	esp_zb_ota_cluster_add_attr(ota_cluster,
-		ESP_ZB_ZCL_ATTR_OTA_UPGRADE_CLIENT_PARAMETER_ID,
-		esp_zb_ota_client_parameter(&ota_client_parameters));
+		ESP_ZB_ZCL_ATTR_OTA_UPGRADE_CLIENT_DATA_ID,
+		&ota_client_parameters);
 
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_ota_cluster(&cluster_list,
 		ota_cluster, role()));

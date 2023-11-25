@@ -167,9 +167,9 @@ esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t
 	}
 }
 
-esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_update_message_t *message) {
+esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t *message) {
 	if (message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
-		if (message->update_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
+		if (message->upgrade_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
 			if (ota_receive_not_logged_) {
 				ESP_LOGD(TAG, "OTA (%zu receive data messages suppressed)",
 					ota_receive_not_logged_);
@@ -178,7 +178,7 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_update_message_t *messa
 			ota_last_receive_us_ = 0;
 		}
 
-		switch (message->update_status) {
+		switch (message->upgrade_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
 			listener_.zigbee_ota_update(true);
@@ -255,7 +255,7 @@ esp_err_t ZigbeeDevice::action_handler(esp_zb_core_action_callback_id_t callback
 		return instance_->set_attr_value(reinterpret_cast<const esp_zb_zcl_set_attr_value_message_t*>(data));
 
 	case ESP_ZB_CORE_OTA_UPGRADE_VALUE_CB_ID:
-		return instance_->ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_update_message_t*>(data));
+		return instance_->ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_upgrade_value_message_t*>(data));
 
 	default:
 		ESP_LOGW(TAG, "Unknown action: %u/0x%02x, data: %p", callback_id,
