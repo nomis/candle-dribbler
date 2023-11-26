@@ -326,10 +326,10 @@ void Device::make_app_info(int app_index, std::string &label, std::string &date_
 	}
 
 	if (desc) {
-		if (std::strlen(desc->date)) {
-			std::string time = desc->time;
+		if (desc->date[0] != '\0') {
+			std::string time = null_terminated_string(desc->time);
 
-			for (char c : desc->date) {
+			for (char c : null_terminated_string(desc->date)) {
 				if (c >= '0' && c <= '9')
 					date_code += c;
 			}
@@ -348,12 +348,12 @@ void Device::make_app_info(int app_index, std::string &label, std::string &date_
 				date_code += 'Z';
 		}
 
-		label += desc->project_name;
+		label += null_terminated_string(desc->project_name);
 		label += " | ";
 
-		version = desc->version;
+		version = null_terminated_string(desc->version);
 		version += " | ";
-		version += desc->idf_ver;
+		version += null_terminated_string(desc->idf_ver);
 	}
 
 	label += part->label;

@@ -18,10 +18,18 @@
 
 #pragma once
 
+#include <cstring>
 #include <string>
+#include <string_view>
 
 namespace nutt {
 
 std::string duration_us_to_string(uint64_t duration_us);
+
+template<typename T, size_t size>
+static inline std::string null_terminated_string(T(&data)[size]) {
+	T *found = reinterpret_cast<T*>(std::memchr(&data[0], '\0', size));
+	return std::string{&data[0], found ? (found - &data[0]) : size};
+};
 
 } // namespace nutt
