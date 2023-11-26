@@ -596,8 +596,8 @@ esp_err_t IdentifyCluster::set_attr_value(uint16_t attr_id,
 }
 
 UpgradeCluster::UpgradeCluster()
-		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_IDENTIFY,
-			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE) {
+		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_OTA_UPGRADE,
+			ESP_ZB_ZCL_CLUSTER_CLIENT_ROLE) {
 }
 
 void UpgradeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
