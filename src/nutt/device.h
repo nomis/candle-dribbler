@@ -196,6 +196,8 @@ public:
 	void leave_network();
 	void print_bindings();
 	void print_neighbours();
+	void print_core_dump(bool full);
+	void erase_core_dump();
 
 	void configure_basic_cluster(esp_zb_attribute_list_t &basic_cluster, int app_index);
 	void make_app_info(int index, std::string &label, std::string &date_code, std::string &version);
@@ -242,6 +244,7 @@ private:
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::unordered_map<uint8_t,Light&> lights_;
 	bool ota_validated_{false};
+	bool core_dump_present_{false};
 };
 
 } // namespace nutt

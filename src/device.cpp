@@ -20,6 +20,7 @@
 
 #include <esp_app_desc.h>
 #include <esp_chip_info.h>
+#include <esp_core_dump.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_mac.h>
@@ -35,6 +36,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "nutt/base64.h"
 #include "nutt/main.h"
 #include "nutt/light.h"
 #include "nutt/thread.h"
@@ -108,6 +110,9 @@ Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
 
 	zigbee_.add(*new ZigbeeEndpoint{UPLINK_RSSI_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
 			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {rssi_cl_}});
+
+	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
+	ui_.core_dump(core_dump_present_);
 }
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
@@ -217,6 +222,72 @@ void Device::print_neighbours() {
 			neighbour.short_addr, type, neighbour.depth, relationship,
 			neighbour.lqi, neighbour.rssi);
 	}
+}
+
+
+void Device::print_core_dump(bool full) {
+	esp_err_t err = esp_core_dump_image_check();
+
+	if (err == ESP_OK) {
+		if (full) {
+			const esp_partition_t *part = esp_partition_find_first(
+				ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+				nullptr);
+			uint32_t size;
+
+			if (esp_partition_read(part, 0, &size, sizeof(size)))
+				return;
+
+			printf("================= CORE DUMP START =================\n");
+			for (size_t offset = 0; offset < size; ) {
+				char data[48] = { 0 };
+				size_t remaining = std::min(static_cast<uint32_t>(sizeof(data)), size - offset);
+
+				if (esp_partition_read(part, offset, data, remaining))
+					break;
+
+				std::shared_ptr<char> buf(base64_encode(data, remaining, nullptr), free);
+				printf("%s", buf.get());
+
+				offset += sizeof(data);
+			}
+			printf("================= CORE DUMP END ===================\n");
+		} else {
+			std::shared_ptr<esp_core_dump_summary_t> summary(
+				static_cast<decltype(summary)::element_type*>(
+					calloc(1, sizeof(decltype(summary)::element_type))), free);
+
+			err = esp_core_dump_get_summary(summary.get());
+			if (err == ESP_OK) {
+				ESP_LOGI(TAG, "PC: %08" PRIx32, summary->exc_pc);
+				ESP_LOGI(TAG, "Task: %s", summary->exc_task);
+			}
+		}
+	} else if (err == ESP_ERR_NOT_FOUND) {
+		ESP_LOGI(TAG, "Core dump partition not found");
+	} else {
+		ESP_LOGI(TAG, "No core dump: %d", err);
+	}
+
+	if (core_dump_present_ != (err == ESP_OK)) {
+		core_dump_present_ = err == ESP_OK;
+		ui_.core_dump(core_dump_present_);
+	}
+}
+
+void Device::erase_core_dump() {
+	esp_err_t err = esp_core_dump_image_erase();
+
+	if (err == ESP_OK) {
+		ESP_LOGI(TAG, "Core dump erased");
+	} else if (err == ESP_ERR_NOT_FOUND) {
+		ESP_LOGI(TAG, "Core dump partition not found");
+	} else {
+		ESP_LOGI(TAG, "Core dump erase error: %d", err);
+	}
+
+	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
+	ui_.core_dump(core_dump_present_);
 }
 
 void Device::scheduled_uptime(uint8_t param) {

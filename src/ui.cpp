@@ -18,7 +18,6 @@
 
 #include "nutt/ui.h"
 
-#include <esp_core_dump.h>
 #include <esp_err.h>
 #include <esp_heap_caps.h>
 #include <esp_log.h>
@@ -37,7 +36,6 @@
 #include <thread>
 #include <unordered_map>
 
-#include "nutt/base64.h"
 #include "nutt/debounce.h"
 #include "nutt/device.h"
 #include "nutt/log.h"
@@ -138,13 +136,6 @@ void UserInterface::start() {
 	make_thread(t, "ui_main", 4096, 2, &UserInterface::run_loop, this);
 	t.detach();
 
-	if (esp_core_dump_image_check() == ESP_OK) {
-		std::lock_guard lock{mutex_};
-
-		start_event(Event::CORE_DUMP_PRESENT);
-		wake_up();
-	}
-
 	make_thread(t, "ui_uart", 6144, 1, &UserInterface::uart_handler, this);
 	t.detach();
 }
@@ -185,12 +176,14 @@ void UserInterface::uart_handler() {
 				device->print_bindings();
 			} else if (buf[0] == 'C') {
 				crash();
-			} else if (buf[0] == 'd') {
-				print_core_dump(false);
-			} else if (buf[0] == 'D') {
-				print_core_dump(true);
-			} else if (buf[0] == 'E') {
-				erase_core_dump();
+			} else if (device && buf[0] == 'd') {
+				device->print_core_dump(false);
+			} else if (device && buf[0] == 'D') {
+				vTaskPrioritySet(nullptr, 20);
+				device->print_core_dump(true);
+				vTaskPrioritySet(nullptr, 1);
+			} else if (device && buf[0] == 'E') {
+				device->erase_core_dump();
 			} else if (device && buf[0] == 'j') {
 				device->join_network();
 			} else if (device && buf[0] == 'l') {
@@ -214,70 +207,6 @@ void UserInterface::crash() {
 	ESP_LOGE(TAG, "Crash at 0x%08" PRIx32, now_us);
 	// cppcheck-suppress nullPointer
 	*x = now_us;
-}
-
-void UserInterface::print_core_dump(bool full) {
-	esp_err_t err = esp_core_dump_image_check();
-
-	if (err == ESP_OK) {
-		if (full) {
-			const esp_partition_t *part = esp_partition_find_first(
-				ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
-				nullptr);
-			uint32_t size;
-
-			if (esp_partition_read(part, 0, &size, sizeof(size)))
-				return;
-
-			vTaskPrioritySet(nullptr, 20);
-			printf("================= CORE DUMP START =================\n");
-			for (size_t offset = 0; offset < size; ) {
-				char data[48] = { 0 };
-				size_t remaining = std::min(static_cast<uint32_t>(sizeof(data)), size - offset);
-
-				if (esp_partition_read(part, offset, data, remaining))
-					break;
-
-				std::shared_ptr<char> buf(base64_encode(data, remaining, nullptr), free);
-				printf("%s", buf.get());
-
-				offset += sizeof(data);
-			}
-			printf("================= CORE DUMP END ===================\n");
-			vTaskPrioritySet(nullptr, 1);
-		} else {
-			std::shared_ptr<esp_core_dump_summary_t> summary(
-				static_cast<decltype(summary)::element_type*>(
-					calloc(1, sizeof(decltype(summary)::element_type))), free);
-
-			err = esp_core_dump_get_summary(summary.get());
-			if (err == ESP_OK) {
-				ESP_LOGI(TAG, "PC: %08" PRIx32, summary->exc_pc);
-				ESP_LOGI(TAG, "Task: %s", summary->exc_task);
-			}
-		}
-	} else if (err == ESP_ERR_NOT_FOUND) {
-		ESP_LOGI(TAG, "Core dump partition not found");
-	} else {
-		ESP_LOGI(TAG, "No core dump: %d", err);
-	}
-}
-
-void UserInterface::erase_core_dump() {
-	esp_err_t err = esp_core_dump_image_erase();
-
-	if (err == ESP_OK) {
-		ESP_LOGI(TAG, "Core dump erased");
-
-		std::lock_guard lock{mutex_};
-
-		stop_event(Event::CORE_DUMP_PRESENT);
-		wake_up();
-	} else if (err == ESP_ERR_NOT_FOUND) {
-		ESP_LOGI(TAG, "Core dump partition not found");
-	} else {
-		ESP_LOGI(TAG, "Core dump erase error: %d", err);
-	}
 }
 
 void UserInterface::print_memory() {
@@ -486,6 +415,16 @@ void UserInterface::light_switched(bool local) {
 
 	restart_event(local ? Event::LIGHT_SWITCHED_LOCAL
 		: Event::LIGHT_SWITCHED_REMOTE);
+	wake_up();
+}
+
+void UserInterface::core_dump(bool present) {
+	std::lock_guard lock{mutex_};
+
+	stop_event(Event::CORE_DUMP_PRESENT);
+	if (present) {
+		start_event(Event::CORE_DUMP_PRESENT);
+	}
 	wake_up();
 }
 

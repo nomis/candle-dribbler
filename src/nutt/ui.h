@@ -116,6 +116,7 @@ public:
 	void identify(uint16_t seconds);
 	void light_switched(bool local);
 	void ota_update(bool ok);
+	void core_dump(bool present);
 
 private:
 	static constexpr const unsigned long DEBOUNCE_PRESS_US = 100 * 1000;
@@ -127,8 +128,6 @@ private:
 	void uart_handler();
 
 	void crash();
-	void print_core_dump(bool full);
-	void erase_core_dump();
 	void print_memory();
 	void print_tasks();
 
