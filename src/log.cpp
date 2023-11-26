@@ -27,6 +27,7 @@
 #include "nutt/main.h"
 #include "nutt/device.h"
 #include "nutt/light.h"
+#include "nutt/ota.h"
 #include "nutt/thread.h"
 #include "nutt/ui.h"
 #include "nutt/zigbee.h"
@@ -64,6 +65,7 @@ void Logging::set_app_level(esp_log_level_t level) {
 
 void Logging::configure_app(esp_log_level_t level) {
 	esp_log_level_set(nutt::TAG, level);
+	esp_log_level_set(nutt::CompressedOTA::TAG, level);
 	esp_log_level_set(nutt::Device::TAG, level);
 	esp_log_level_set(nutt::Light::TAG, level);
 	esp_log_level_set(nutt::UserInterface::TAG, level);

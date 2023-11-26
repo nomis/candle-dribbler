@@ -33,6 +33,7 @@ namespace nutt {
 
 using ep_id_t = uint8_t;
 
+class CompressedOTA;
 class UserInterface;
 class ZigbeeDevice;
 class ZigbeeEndpoint;
@@ -235,6 +236,11 @@ private:
 	bool network_configured_{false};
 	bool network_failed_{false};
 	ZigbeeState state_{ZigbeeState::INIT};
+
+	std::unique_ptr<CompressedOTA> ota_;
+	std::vector<uint8_t> ota_header_;
+	bool ota_upgrade_subelement_{false};
+	size_t ota_data_len_{0};
 	uint64_t ota_last_receive_us_{0};
 	size_t ota_receive_not_logged_{0};
 

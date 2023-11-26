@@ -36,6 +36,7 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+#include "nutt/ota.h"
 #include "nutt/thread.h"
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
@@ -168,6 +169,9 @@ esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t
 }
 
 esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t *message) {
+	const uint8_t *payload = message->payload;
+	size_t payload_size = message->payload_size;
+
 	if (message->info.status == ESP_ZB_ZCL_STATUS_SUCCESS) {
 		if (message->upgrade_status != ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE) {
 			if (ota_receive_not_logged_) {
@@ -181,7 +185,17 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t
 		switch (message->upgrade_status) {
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_START:
 			ESP_LOGI(TAG, "OTA start");
-			listener_.zigbee_ota_update(true);
+			ota_.reset();
+			ota_header_.clear();
+			ota_upgrade_subelement_ = false;
+			ota_data_len_ = 0;
+			ota_ = std::make_unique<CompressedOTA>();
+			if (ota_->start()) {
+				listener_.zigbee_ota_update(true);
+			} else {
+				ota_.reset();
+				return ESP_FAIL;
+			}
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_APPLY:
@@ -189,35 +203,80 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t
 			listener_.zigbee_ota_update(true);
 			break;
 
-		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE: {
-				uint64_t now_us = esp_timer_get_time();
-
-				if (!ota_last_receive_us_
-						|| now_us - ota_last_receive_us_ >= 30 * 1000 * 1000) {
-					ESP_LOGD(TAG, "OTA receive data (%zu messages suppressed)",
-						ota_receive_not_logged_);
-					ota_last_receive_us_ = now_us;
-					ota_receive_not_logged_ = 0;
-				} else {
-					ota_receive_not_logged_++;
-				}
-				listener_.zigbee_ota_update(true);
+		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_RECEIVE:
+			/* Read and process the first sub-element, ignoring everything else */
+			while (ota_header_.size() < 6 && payload_size > 0) {
+				ota_header_.push_back(payload[0]);
+				payload++;
+				payload_size--;
 			}
+
+			if (!ota_upgrade_subelement_ && ota_header_.size() == 6) {
+				if (ota_header_[0] == 0 && ota_header_[1] == 0) {
+					ota_upgrade_subelement_ = true;
+					ota_data_len_ =
+						  (((int)ota_header_[5] & 0xFF) << 24)
+						| (((int)ota_header_[4] & 0xFF) << 16)
+						| (((int)ota_header_[3] & 0xFF) << 8 )
+						|  ((int)ota_header_[2] & 0xFF);
+					ESP_LOGD(TAG, "OTA sub-element size %zu", ota_data_len_);
+				} else {
+					ESP_LOGE(TAG, "OTA sub-element type %02x%02x not supported", ota_header_[0], ota_header_[1]);
+					ota_.reset();
+					listener_.zigbee_ota_update(false);
+					return ESP_FAIL;
+				}
+			}
+
+			if (ota_data_len_) {
+				payload_size = std::min(ota_data_len_, payload_size);
+				ota_data_len_ -= payload_size;
+
+				if (ota_ && ota_->write(payload, payload_size)) {
+					uint64_t now_us = esp_timer_get_time();
+
+					if (!ota_last_receive_us_
+							|| now_us - ota_last_receive_us_ >= 30 * 1000 * 1000) {
+						ESP_LOGD(TAG, "OTA receive data (%zu messages suppressed)",
+							ota_receive_not_logged_);
+						ota_last_receive_us_ = now_us;
+						ota_receive_not_logged_ = 0;
+					} else {
+						ota_receive_not_logged_++;
+					}
+				} else {
+					ota_.reset();
+					listener_.zigbee_ota_update(false);
+					return ESP_FAIL;
+				}
+			}
+
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_FINISH:
 			ESP_LOGI(TAG, "OTA finished");
-			listener_.zigbee_ota_update(true);
+			if (ota_) {
+				bool ok = ota_->finish();
+				ota_.reset();
+				listener_.zigbee_ota_update(ok, true);
+				if (ok) {
+					esp_restart();
+				}
+			} else {
+				listener_.zigbee_ota_update(false);
+			}
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ABORT:
 			ESP_LOGI(TAG, "OTA aborted");
 			listener_.zigbee_ota_update(false, true);
+			ota_.reset();
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_CHECK:
 			ESP_LOGI(TAG, "OTA data complete");
-			listener_.zigbee_ota_update(true, true);
+			listener_.zigbee_ota_update(true);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_OK:
@@ -227,6 +286,7 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_ERROR:
 			ESP_LOGI(TAG, "OTA data error");
+			ota_.reset();
 			listener_.zigbee_ota_update(false);
 			break;
 
@@ -237,11 +297,14 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_BUSY:
 			ESP_LOGI(TAG, "OTA busy");
+			ota_.reset();
 			listener_.zigbee_ota_update(false);
 			break;
 
 		case ESP_ZB_ZCL_OTA_UPGRADE_STATUS_SERVER_NOT_FOUND:
 			ESP_LOGI(TAG, "OTA server not found");
+			ota_.reset();
+			listener_.zigbee_ota_update(false);
 			break;
 		}
 	}

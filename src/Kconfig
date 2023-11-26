@@ -33,7 +33,6 @@ config NUTT_ZIGBEE_ROLE_ROUTER
 
 menuconfig NUTT_SUPPORT_OTA
 	bool "Support OTA"
-	depends on BROKEN
 	default n
 	help
 		Support OTA (over the air) updates. These are slow and take a long time

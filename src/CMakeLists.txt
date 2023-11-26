@@ -6,6 +6,7 @@ idf_component_register(
 		light.cpp
 		log.cpp
 		main.cpp
+		ota.cpp
 		thread.cpp
 		ui.cpp
 		util.cpp
@@ -36,6 +37,7 @@ target_compile_options(
 		-Wextra
 		-Wshadow
 		-Werror
+		-DZLIB_CONST
 		-DNUTT_GIT_COMMIT_TIME=${git_commit_time}+0UL
 )
 
