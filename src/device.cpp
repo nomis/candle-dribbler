@@ -124,6 +124,7 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 
 void Device::start() {
 	zigbee_.start();
+	uptime_cl_.update(core_dump_present_);
 	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, std::chrono::milliseconds(1min).count());
 
 	std::thread t;
@@ -288,10 +289,12 @@ void Device::erase_core_dump() {
 
 	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
 	ui_.core_dump(core_dump_present_);
+
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 1, 0);
 }
 
 void Device::scheduled_uptime(uint8_t param) {
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, instance_->uptime_cl_.update());
+	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, instance_->uptime_cl_.update(instance_->core_dump_present_));
 }
 
 void Device::scheduled_connected(uint8_t param) {
@@ -628,7 +631,11 @@ uint16_t UptimeCluster::units_{70}; /* Time - Days */
 UptimeCluster::UptimeCluster()
 		: ZigbeeCluster(ESP_ZB_ZCL_CLUSTER_ID_ANALOG_INPUT,
 			ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-			{ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID}) {
+			{
+				ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID,
+				ESP_ZB_ZCL_ATTR_ANALOG_INPUT_RELIABILITY_ID,
+				ESP_ZB_ZCL_ATTR_ANALOG_INPUT_STATUS_FLAGS_ID,
+			}) {
 }
 
 void UptimeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) {
@@ -644,15 +651,28 @@ void UptimeCluster::configure_cluster_list(esp_zb_cluster_list_t &cluster_list) 
 			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_DESCRIPTION_ID,
 			ZigbeeString("Uptime").data()));
 
+	ESP_ERROR_CHECK(esp_zb_analog_input_cluster_add_attr(input_cluster,
+			ESP_ZB_ZCL_ATTR_ANALOG_INPUT_RELIABILITY_ID, &reliability_));
+
 	ESP_ERROR_CHECK(esp_zb_cluster_list_add_analog_input_cluster(&cluster_list,
 		input_cluster, role()));
 }
 
-uint32_t UptimeCluster::update() {
+uint32_t UptimeCluster::update(bool fault) {
 	uint64_t uptime_us = esp_timer_get_time();
 
 	uptime_ = uptime_us / static_cast<float>(std::chrono::microseconds(24h).count());
 	update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_PRESENT_VALUE_ID, &uptime_);
+
+	if (fault) {
+		reliability_ = ESP_ZB_ZCL_ANALOG_INPUT_RELIABILITY_UNRELIABLE_OTHER;
+		status_flags_ = ESP_ZB_ZCL_ANALOG_INPUT_STATUS_FLAG_FAULT;
+	} else {
+		reliability_ = ESP_ZB_ZCL_ANALOG_INPUT_RELIABILITY_NO_FAULT_DETECTED;
+		status_flags_ = ESP_ZB_ZCL_ANALOG_INPUT_STATUS_FLAG_NORMAL;
+	}
+	update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_RELIABILITY_ID, &reliability_);
+	update_attr_value(ESP_ZB_ZCL_ATTR_ANALOG_INPUT_STATUS_FLAGS_ID, &status_flags_);
 
 	return uptime_us < std::chrono::microseconds(1h).count()
 		? std::chrono::milliseconds(1min).count()

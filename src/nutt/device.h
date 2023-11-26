@@ -100,13 +100,15 @@ public:
 	~UptimeCluster() = default;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
-	uint32_t update();
+	uint32_t update(bool fault);
 
 private:
 	static uint32_t app_type_;
 	static uint16_t units_;
 
 	float uptime_{0};
+	uint8_t reliability_{ESP_ZB_ZCL_ANALOG_INPUT_RELIABILITY_NO_FAULT_DETECTED};
+	uint8_t status_flags_{ESP_ZB_ZCL_ANALOG_INPUT_STATUS_FLAG_NORMAL};
 };
 
 class ConnectedCluster: public ZigbeeCluster {
@@ -244,7 +246,7 @@ private:
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::unordered_map<uint8_t,Light&> lights_;
 	bool ota_validated_{false};
-	bool core_dump_present_{false};
+	std::atomic<bool> core_dump_present_{false};
 };
 
 } // namespace nutt

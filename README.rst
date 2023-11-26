@@ -77,6 +77,19 @@ The power on state is all lights off. The **Persistent Enable Switch** setting
 is stored in flash so it's persistent (it will also be used to set the initial
 value of the **Temporary Enable Switch**).
 
+Status
+~~~~~~
+
+The following Zigbee analog input clusters report the status of the device:
+
+* Uptime (days)
+* Connected time (days)
+* Uplink address
+* Uplink RSSI (dB)
+
+When a core dump is present the **Uptime (days)** cluster will report a fault
+in the status flag with a reliability attribute value of "unreliable other".
+
 LED Events
 ~~~~~~~~~~
 
@@ -113,7 +126,7 @@ LED Events
    * - Red (blinking 8 times in 3 seconds)
      - OTA update error
    * - Rainbow (cycling)
-     - Core dump preset
+     - Core dump present
 
 UART Commands
 ~~~~~~~~~~~~~
