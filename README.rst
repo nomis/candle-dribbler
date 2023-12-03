@@ -3,11 +3,9 @@ Candle Dribbler
 
 ESP32 Zigbee multi-channel light controller.
 
-Supports up to 6 lights (switch and relay).
+Supports up to 8 lights (switch and relay).
 
 Requires an ESP32-H2 or ESP32-C6.
-
-Work in progress.
 
     ...some very big candles that were just lava streams of wax, and a raven on
     a skull.
