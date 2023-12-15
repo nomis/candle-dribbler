@@ -59,7 +59,8 @@ def create(filename, manufacturer_id, image_type, file_version, header_string):
 
 if __name__ == "__main__":
 	any_int = functools.wraps(int)(functools.partial(int, base=0))
-	parser = argparse.ArgumentParser(description="Create zlib-compressed Zigbee OTA file")
+	parser = argparse.ArgumentParser(description="Create zlib-compressed Zigbee OTA file",
+		epilog="Reads a firmware image file and outputs an OTA file on standard output")
 	parser.add_argument("filename", metavar="IMAGE", type=str, help="Firmware image filename")
 	parser.add_argument("-m", "--manufacturer_id", metavar="MANUFACTURER_ID", type=any_int, required=True, help="Manufacturer ID")
 	parser.add_argument("-i", "--image_type", metavar="IMAGE_ID", type=any_int, required=True, help="Image ID")
