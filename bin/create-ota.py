@@ -17,7 +17,6 @@
 
 import argparse
 import functools
-import sys
 import zlib
 
 import zigpy.ota
@@ -61,11 +60,17 @@ if __name__ == "__main__":
 	any_int = functools.wraps(int)(functools.partial(int, base=0))
 	parser = argparse.ArgumentParser(description="Create zlib-compressed Zigbee OTA file",
 		epilog="Reads a firmware image file and outputs an OTA file on standard output")
-	parser.add_argument("filename", metavar="IMAGE", type=str, help="Firmware image filename")
+	parser.add_argument("filename", metavar="INPUT", type=str, help="Firmware image filename")
+	parser.add_argument("output", metavar="OUTPUT", type=str, help="OTA filename")
 	parser.add_argument("-m", "--manufacturer_id", metavar="MANUFACTURER_ID", type=any_int, required=True, help="Manufacturer ID")
 	parser.add_argument("-i", "--image_type", metavar="IMAGE_ID", type=any_int, required=True, help="Image ID")
 	parser.add_argument("-v", "--file_version", metavar="VERSION", type=any_int, required=True, help="File version")
 	parser.add_argument("-s", "--header_string", metavar="HEADER_STRING", type=str, default="", help="Header String")
 
 	args = parser.parse_args()
-	sys.stdout.buffer.write(create(**vars(args)))
+	output = args.output
+	del args.output
+
+	data = create(**vars(args))
+	with open(output, "wb") as f:
+		f.write(data)

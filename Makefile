@@ -44,5 +44,5 @@ build/candle-dribbler.ota: build/candle-dribbler.bin build/config/sdkconfig.h bi
 		-m $(shell grep -F CONFIG_NUTT_OTA_MANUFACTURER_ID build/config/sdkconfig.h | cut -d ' ' -f 3) \
 		-i $(shell grep -F CONFIG_NUTT_OTA_IMAGE_TYPE_ID build/config/sdkconfig.h | cut -d ' ' -f 3) \
 		-v $(shell grep -F CONFIG_NUTT_OTA_FILE_VERSION build/config/sdkconfig.h | cut -d ' ' -f 3) \
-		-- $< > $@~
+		-- $< $@~
 	mv $@~ $@
