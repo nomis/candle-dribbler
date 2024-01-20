@@ -320,6 +320,9 @@ esp_err_t ZigbeeDevice::action_handler(esp_zb_core_action_callback_id_t callback
 	case ESP_ZB_CORE_OTA_UPGRADE_VALUE_CB_ID:
 		return instance_->ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_upgrade_value_message_t*>(data));
 
+	case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
+		break;
+
 	default:
 		ESP_LOGW(TAG, "Unknown action: %u/0x%02x, data: %p", callback_id,
 			callback_id, data);
