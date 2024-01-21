@@ -79,10 +79,16 @@ public:
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
 
 private:
-#ifdef CONFIG_NUTT_SUPPORT_OTA
+#ifndef CONFIG_NUTT_SUPPORT_OTA
+#define CONFIG_NUTT_SUPPORT_OTA 0
+#endif
+#if CONFIG_NUTT_SUPPORT_OTA
 	static constexpr const uint16_t OTA_MANUFACTURER_ID = CONFIG_NUTT_OTA_MANUFACTURER_ID;
 	static constexpr const uint16_t OTA_IMAGE_TYPE_ID = CONFIG_NUTT_OTA_IMAGE_TYPE_ID;
-# ifdef CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
+# ifndef CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
+# define CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT 0
+# endif
+# if CONFIG_NUTT_OTA_FILE_VERSION_FROM_GIT_COMMIT
 	static constexpr const uint32_t OTA_FILE_VERSION = static_cast<uint32_t>(NUTT_COMMIT_TIME);
 # else
 	static constexpr const uint32_t OTA_FILE_VERSION = CONFIG_NUTT_OTA_FILE_VERSION;
@@ -215,11 +221,10 @@ private:
 	static constexpr const ep_id_t CONNECTED_EP_ID = 210;
 	static constexpr const ep_id_t UPLINK_PARENT_EP_ID = 211;
 	static constexpr const ep_id_t UPLINK_RSSI_EP_ID = 212;
-#ifdef CONFIG_NUTT_SUPPORT_OTA
-	static constexpr const bool OTA_SUPPORTED = true;
-#else
-	static constexpr const bool OTA_SUPPORTED = false;
+#ifndef CONFIG_NUTT_SUPPORT_OTA
+#define CONFIG_NUTT_SUPPORT_OTA 0
 #endif
+	static constexpr const bool OTA_SUPPORTED = CONFIG_NUTT_SUPPORT_OTA;
 
 	static void scheduled_refresh(uint8_t param);
 	static void scheduled_uptime(uint8_t param);

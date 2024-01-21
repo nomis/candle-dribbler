@@ -180,11 +180,10 @@ class ZigbeeDevice {
 	friend void ::esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 
 public:
-#ifdef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
-	static constexpr const bool ROUTER = true;
-#else
-	static constexpr const bool ROUTER = false;
+#ifndef CONFIG_NUTT_ZIGBEE_ROLE_ROUTER
+#define CONFIG_NUTT_ZIGBEE_ROLE_ROUTER 0
 #endif
+	static constexpr const bool ROUTER = CONFIG_NUTT_ZIGBEE_ROLE_ROUTER;
 
 	explicit ZigbeeDevice(ZigbeeListener &listener);
 	~ZigbeeDevice() = delete;

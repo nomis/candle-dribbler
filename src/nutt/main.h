@@ -25,7 +25,15 @@ namespace nutt {
 
 static constexpr const char *TAG = "nutt";
 static constexpr const size_t MAX_LIGHTS = CONFIG_NUTT_MAX_LIGHTS;
+
+#ifndef CONFIG_NUTT_SWITCH_ACTIVE_LOW
+#define CONFIG_NUTT_SWITCH_ACTIVE_LOW 0
+#endif
 static constexpr const bool SWITCH_ACTIVE_LOW = CONFIG_NUTT_SWITCH_ACTIVE_LOW;
+
+#ifndef CONFIG_NUTT_RELAY_ACTIVE_LOW
+#define CONFIG_NUTT_RELAY_ACTIVE_LOW 0
+#endif
 static constexpr const bool RELAY_ACTIVE_LOW = CONFIG_NUTT_RELAY_ACTIVE_LOW;
 
 } // namespace nutt
