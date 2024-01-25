@@ -271,10 +271,11 @@ inline void UserInterface::stop_events(std::initializer_list<Event> events) {
 }
 
 unsigned long UserInterface::update_led() {
-	uint64_t now_us_ = esp_timer_get_time();
+	std::unique_lock lock{mutex_};
+	uint64_t now_us = esp_timer_get_time();
 
 	if (render_time_us_ && event_active(render_event_)) {
-		uint64_t elapsed_us = now_us_ - render_time_us_;
+		uint64_t elapsed_us = now_us - render_time_us_;
 		auto &sequence = active_sequence_[render_event_];
 
 		if (sequence.states[0].duration_ms) {
@@ -300,8 +301,6 @@ unsigned long UserInterface::update_led() {
 	unsigned long wait_ms;
 	RGBColour colour;
 	Event event;
-
-	std::unique_lock lock{mutex_};
 	unsigned long value = ffsl(active_events_.to_ulong());
 
 	if (value) {
