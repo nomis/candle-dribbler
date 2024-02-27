@@ -30,6 +30,9 @@
 #include <led_strip.h>
 #include <soc/uart_pins.h>
 #include <string.h>
+extern "C" {
+#include <zboss_api.h>
+}
 
 #include <bitset>
 #include <memory>
@@ -172,6 +175,8 @@ void UserInterface::uart_handler() {
 				logging_.set_app_level(static_cast<esp_log_level_t>(buf[0] - '1' + 1));
 			} else if (buf[0] >= '6' && buf[0] <= '9') {
 				logging_.set_sys_level(static_cast<esp_log_level_t>(buf[0] - '6' + 1));
+			} else if (buf[0] == 'A') {
+				zb_assert(__FILE__, __LINE__);
 			} else if (device && buf[0] == 'b') {
 				device->print_bindings();
 			} else if (buf[0] == 'C') {
