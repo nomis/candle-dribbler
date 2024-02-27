@@ -909,16 +909,12 @@ retry:
  * https://github.com/espressif/esp-zigbee-sdk/issues/157
  */
 extern "C" void __wrap_zb_abort(char *caller_file, int caller_line) {
-	ESP_LOGE(ZigbeeDevice::TAG, "zb_abort(%s, %d)", caller_file, caller_line);
-
 	char message[128];
 	snprintf(message, sizeof(message), "%s:%d", caller_file, caller_line);
 	esp_system_abort(message);
 }
 
 extern "C" void __wrap_zb_assert(const zb_char_t *file_name, zb_int_t line_number) {
-	ESP_LOGE(ZigbeeDevice::TAG, "zb_assert(%s, %d)", file_name, line_number);
-
 	char message[128];
 	snprintf(message, sizeof(message), "%s:%d", file_name, line_number);
 	esp_system_abort(message);
