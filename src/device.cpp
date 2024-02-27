@@ -24,8 +24,9 @@
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_mac.h>
-#include <esp_partition.h>
 #include <esp_ota_ops.h>
+#include <esp_partition.h>
+#include <esp_task_wdt.h>
 
 #include <algorithm>
 #include <chrono>
@@ -50,7 +51,7 @@ namespace nutt {
 
 Device *Device::instance_{nullptr};
 
-Device::Device(UserInterface &ui) : WakeupThread("Device"), ui_(ui),
+Device::Device(UserInterface &ui) : WakeupThread("Device", true), ui_(ui),
 		zigbee_(*new ZigbeeDevice{*this}),
 		basic_cl_(*this, "uuid.uk",
 			(MAX_LIGHTS > 0 || !ZigbeeDevice::ROUTER)
@@ -302,7 +303,9 @@ void Device::scheduled_connected(uint8_t param) {
 }
 
 unsigned long Device::run_tasks() {
-	unsigned long wait_ms = ULONG_MAX;
+	unsigned long wait_ms = WATCHDOG_INTERVAL_MS;
+
+	esp_task_wdt_reset();
 
 	for (auto &light : lights_)
 		wait_ms = std::min(wait_ms, light.second.run());

@@ -221,6 +221,7 @@ private:
 	static constexpr const ep_id_t CONNECTED_EP_ID = 210;
 	static constexpr const ep_id_t UPLINK_PARENT_EP_ID = 211;
 	static constexpr const ep_id_t UPLINK_RSSI_EP_ID = 212;
+	static constexpr const unsigned long WATCHDOG_INTERVAL_MS = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000 / 4;
 #ifndef CONFIG_NUTT_SUPPORT_OTA
 #define CONFIG_NUTT_SUPPORT_OTA 0
 #endif

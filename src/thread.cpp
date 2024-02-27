@@ -20,6 +20,7 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_task_wdt.h>
 #include <esp_timer.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
@@ -28,8 +29,8 @@
 
 namespace nutt {
 
-WakeupThread::WakeupThread(const char *name) : name_(name),
-		semaphore_(xSemaphoreCreateBinary()) {
+WakeupThread::WakeupThread(const char *name, bool watchdog) : name_(name),
+		watchdog_(watchdog), semaphore_(xSemaphoreCreateBinary()) {
 	if (!semaphore_) {
 		ESP_LOGE(TAG, "Semaphore create for %s failed", name_);
 		esp_restart();
@@ -45,6 +46,10 @@ WakeupThread::WakeupThread(const char *name) : name_(name),
 }
 
 void WakeupThread::run_loop() {
+	if (watchdog_) {
+		ESP_ERROR_CHECK(esp_task_wdt_add(nullptr));
+	}
+
 	while (true) {
 		unsigned long wait_ms = std::max(1UL, run_tasks());
 

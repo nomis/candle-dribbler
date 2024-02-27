@@ -79,7 +79,7 @@ using ui::NetworkState;
 using ui::RGBColour;
 
 UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
-		bool active_low) : WakeupThread("UI"), logging_(logging),
+		bool active_low) : WakeupThread("UI", false), logging_(logging),
 		button_debounce_(network_join_pin, active_low, DEBOUNCE_PRESS_US,
 			DEBOUNCE_RELEASE_US) {
 	led_strip_config_t led_strip_config{};

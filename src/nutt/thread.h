@@ -47,7 +47,7 @@ public:
 	IRAM_ATTR void wake_up_isr();
 
 protected:
-	WakeupThread(const char *name);
+	WakeupThread(const char *name, bool watchdog);
 	~WakeupThread() = default;
 
 	virtual unsigned long run_tasks() = 0;
@@ -58,6 +58,7 @@ private:
 	static void wake_up_timer(void *arg);
 
 	const char *name_;
+	const bool watchdog_;
 	const SemaphoreHandle_t semaphore_;
 	esp_timer_handle_t timer_{nullptr};
 };
