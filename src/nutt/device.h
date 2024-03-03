@@ -1,6 +1,6 @@
 /*
  * candle-dribbler - ESP32 Zigbee light controller
- * Copyright 2023  Simon Arlott
+ * Copyright 2023-2024  Simon Arlott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
