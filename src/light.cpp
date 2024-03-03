@@ -1,6 +1,6 @@
 /*
  * candle-dribbler - ESP32 Zigbee light controller
- * Copyright 2023  Simon Arlott
+ * Copyright 2023-2024  Simon Arlott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 
 #include "nutt/light.h"
 
+#include <esp_crc.h>
 #include <esp_err.h>
 #include <esp_log.h>
 #include <esp_timer.h>
@@ -45,6 +46,8 @@ namespace nutt {
 
 std::unique_ptr<nvs::NVSHandle> Light::nvs_;
 
+RTC_NOINIT_ATTR uint32_t Light::rtc_state_[MAX_LIGHTS];
+
 Light::Light(uint8_t index, gpio_num_t switch_pin, bool switch_active_low,
 		gpio_num_t relay_pin, bool relay_active_low) : index_(index),
 		switch_debounce_(switch_pin, switch_active_low, DEBOUNCE_US),
@@ -68,6 +71,17 @@ Light::Light(uint8_t index, gpio_num_t switch_pin, bool switch_active_low,
 	ESP_ERROR_CHECK(gpio_config(&relay_config));
 
 	ESP_LOGD(TAG, "Light %u switch is %d", index_, switch_active_);
+
+	if (esp_reset_reason() == ESP_RST_POWERON) {
+		ESP_LOGD(TAG, "Light %u RTC state 0x%08" PRIx32 " (power on)", index_, read_rtc_state());
+		save_rtc_state(create_rtc_state());
+	} else if (valid_rtc_state()) {
+		ESP_LOGD(TAG, "Light %u RTC state 0x%08" PRIx32 " (checksum valid)", index_, read_rtc_state());
+		load_rtc_state();
+	} else {
+		ESP_LOGW(TAG, "Light %u RTC state 0x%08" PRIx32 " (checksum invalid)", index_, read_rtc_state());
+		save_rtc_state(create_rtc_state());
+	}
 }
 
 bool Light::open_nvs() {
@@ -271,16 +285,69 @@ void Light::persistent_enable(bool state) {
 	update_state();
 }
 
+uint32_t Light::rtc_checksum(uint16_t value) {
+	uint16_t checksum = esp_crc16_le(0, reinterpret_cast<uint8_t *>(&value), 2) + index_;
+
+	return value | (checksum << 16);
+}
+
+bool Light::valid_rtc_state() {
+	uint32_t value = read_rtc_state();
+
+	return value == rtc_checksum(value);
+}
+
+void Light::load_rtc_state() {
+	uint32_t value = read_rtc_state();
+
+	primary_on_ = (value & (1 << RTC_STATE_BIT_PRIMARY_ON)) != 0;
+	secondary_on_ = (value & (1 << RTC_STATE_BIT_SECONDARY_ON)) != 0;
+	tertiary_on_ = (value & (1 << RTC_STATE_BIT_TERTIARY_ON)) != 0;
+	temporary_enable_ = (value & (1 << RTC_STATE_BIT_TEMPORARY_ENABLE)) != 0;
+	switch_active_ = (value & (1 << RTC_STATE_BIT_SWITCH_ACTIVE)) != 0;
+	on_ = (value & (1 << RTC_STATE_BIT_ON)) != 0;
+}
+
+uint32_t Light::create_rtc_state() {
+	return rtc_checksum(
+		  (primary_on_ << RTC_STATE_BIT_PRIMARY_ON)
+		| (secondary_on_ << RTC_STATE_BIT_SECONDARY_ON)
+		| (tertiary_on_ << RTC_STATE_BIT_TERTIARY_ON)
+		| (switch_active_ << RTC_STATE_BIT_SWITCH_ACTIVE)
+		| (temporary_enable_ << RTC_STATE_BIT_TEMPORARY_ENABLE)
+		| (on_ << RTC_STATE_BIT_ON)
+	);
+}
+
 void Light::update_state() {
 	bool on = (temporary_enable_ && primary_on_) || secondary_on_ || tertiary_on_;
 	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
 	on_ = on;
+
+	uint32_t new_rtc_state = create_rtc_state();
 	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
+
+#ifdef CONFIG_FREERTOS_SMP
+# error "Interrupts are only disabled on the current CPU and will not stop tasks on the other CPU"
+#endif
+
+	/*
+	 * Stop other tasks running while updating the relay GPIO, so that it can't
+	 * crash in the critical period where the GPIO is not held over a reset.
+	 */
+	portDISABLE_INTERRUPTS();
+	gpio_hold_dis(relay_pin_);
+	save_rtc_state(new_rtc_state);
+	gpio_hold_en(relay_pin_);
+	portENABLE_INTERRUPTS();
+
 	request_refresh();
 }
 
 void Light::request_refresh() {
-	device_->request_refresh(*this);
+	if (device_) {
+		device_->request_refresh(*this);
+	}
 }
 
 void Light::refresh() {

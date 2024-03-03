@@ -1,6 +1,6 @@
 /*
  * candle-dribbler - ESP32 Zigbee light controller
- * Copyright 2023  Simon Arlott
+ * Copyright 2023-2024  Simon Arlott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -31,6 +31,7 @@
 
 #include "debounce.h"
 #include "device.h"
+#include "main.h"
 #include "zigbee.h"
 
 namespace nutt {
@@ -192,6 +193,15 @@ public:
 	void refresh();
 
 private:
+	enum RtcStateBit {
+		RTC_STATE_BIT_PRIMARY_ON = 0,
+		RTC_STATE_BIT_SECONDARY_ON = 1,
+		RTC_STATE_BIT_TERTIARY_ON = 2,
+		RTC_STATE_BIT_SWITCH_ACTIVE = 4,
+		RTC_STATE_BIT_TEMPORARY_ENABLE = 8,
+		RTC_STATE_BIT_ON = 12,
+	};
+
 	static constexpr const ep_id_t PRIMARY_BASE_EP_ID = 10;
 	static constexpr const ep_id_t SECONDARY_BASE_EP_ID = 20;
 	static constexpr const ep_id_t TERTIARY_BASE_EP_ID = 30;
@@ -200,6 +210,14 @@ private:
 	static constexpr const ep_id_t PERSISTENT_ENABLE_BASE_EP_ID = 80;
 	static constexpr const unsigned long DEBOUNCE_US = 20 * 1000;
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
+	static uint32_t rtc_state_[MAX_LIGHTS];
+
+	inline uint32_t read_rtc_state() { return rtc_state_[index_ - 1]; }
+	uint32_t rtc_checksum(uint16_t value);
+	bool valid_rtc_state();
+	void load_rtc_state();
+	uint32_t create_rtc_state();
+	inline void save_rtc_state(uint32_t value) { rtc_state_[index_ - 1] = value; }
 
 	bool open_nvs();
 	bool enable_nvs();
