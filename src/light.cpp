@@ -162,15 +162,32 @@ unsigned long Light::run() {
 	DebounceResult debounce = switch_debounce_.run();
 
 	if (debounce.changed) {
+		bool state = switch_debounce_.value();
+
 		if (switch_debounce_.first()) {
 			std::lock_guard lock{mutex_};
-			bool state = switch_debounce_.value();
 
-			switch_active_ = state;
-			switch_change_us_ = esp_timer_get_time();
-			request_refresh();
+			if (switch_debounced_) {
+				/*
+				 * Already debounced at least once on a previous startup and the
+				 * state was retained over a restart, so a change from that
+				 * state should be handled as a new switch event but otherwise
+				 * ignored.
+				 */
+				if (switch_active_ != state) {
+					primary_switch(state, true);
+				} else {
+					/* switch_change_us_ remains at 0 */
+				}
+			} else {
+				switch_active_ = state;
+				switch_change_us_ = esp_timer_get_time();
+				switch_debounced_ = true;
+				save_rtc_state();
+				request_refresh();
+			}
 		} else {
-			primary_switch(switch_debounce_.value(), true);
+			primary_switch(state, true);
 		}
 	}
 
@@ -304,8 +321,9 @@ void Light::load_rtc_state() {
 	primary_on_ = (value & (1 << RTC_STATE_BIT_PRIMARY_ON)) != 0;
 	secondary_on_ = (value & (1 << RTC_STATE_BIT_SECONDARY_ON)) != 0;
 	tertiary_on_ = (value & (1 << RTC_STATE_BIT_TERTIARY_ON)) != 0;
-	temporary_enable_ = (value & (1 << RTC_STATE_BIT_TEMPORARY_ENABLE)) != 0;
 	switch_active_ = (value & (1 << RTC_STATE_BIT_SWITCH_ACTIVE)) != 0;
+	switch_debounced_ = (value & (1 << RTC_STATE_BIT_SWITCH_DEBOUNCED)) != 0;
+	temporary_enable_ = (value & (1 << RTC_STATE_BIT_TEMPORARY_ENABLE)) != 0;
 	on_ = (value & (1 << RTC_STATE_BIT_ON)) != 0;
 }
 
@@ -319,6 +337,7 @@ void Light::save_rtc_state() {
 		| (secondary_on_ << RTC_STATE_BIT_SECONDARY_ON)
 		| (tertiary_on_ << RTC_STATE_BIT_TERTIARY_ON)
 		| (switch_active_ << RTC_STATE_BIT_SWITCH_ACTIVE)
+		| (switch_debounced_ << RTC_STATE_BIT_SWITCH_DEBOUNCED)
 		| (temporary_enable_ << RTC_STATE_BIT_TEMPORARY_ENABLE)
 		| (on_ << RTC_STATE_BIT_ON)
 	);

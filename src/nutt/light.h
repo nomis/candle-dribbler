@@ -198,6 +198,7 @@ private:
 		RTC_STATE_BIT_SECONDARY_ON = 1,
 		RTC_STATE_BIT_TERTIARY_ON = 2,
 		RTC_STATE_BIT_SWITCH_ACTIVE = 4,
+		RTC_STATE_BIT_SWITCH_DEBOUNCED = 5,
 		RTC_STATE_BIT_TEMPORARY_ENABLE = 8,
 		RTC_STATE_BIT_ON = 12,
 	};
@@ -240,6 +241,7 @@ private:
 	bool tertiary_on_{false};
 	bool switch_active_;
 	uint64_t switch_change_us_{0};
+	bool switch_debounced_{false};
 	bool persistent_enable_{true};
 	bool temporary_enable_{true};
 	bool on_{false};
