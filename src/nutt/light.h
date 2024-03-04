@@ -212,12 +212,11 @@ private:
 	static std::unique_ptr<nvs::NVSHandle> nvs_;
 	static uint32_t rtc_state_[MAX_LIGHTS];
 
-	inline uint32_t read_rtc_state() { return rtc_state_[index_ - 1]; }
+	uint32_t read_rtc_state();
 	uint32_t rtc_checksum(uint16_t value);
 	bool valid_rtc_state();
 	void load_rtc_state();
-	uint32_t create_rtc_state();
-	inline void save_rtc_state(uint32_t value) { rtc_state_[index_ - 1] = value; }
+	void save_rtc_state();
 
 	bool open_nvs();
 	bool enable_nvs();
@@ -225,6 +224,7 @@ private:
 
 	void secondary_switch_locked(bool state, bool local);
 	void update_state();
+	void update_relay();
 
 	inline int relay_active() const { return relay_active_low_ ? 0 : 1; }
 	inline int relay_inactive() const { return relay_active_low_ ? 1 : 0; }

@@ -74,13 +74,14 @@ Light::Light(uint8_t index, gpio_num_t switch_pin, bool switch_active_low,
 
 	if (esp_reset_reason() == ESP_RST_POWERON) {
 		ESP_LOGD(TAG, "Light %u RTC state 0x%08" PRIx32 " (power on)", index_, read_rtc_state());
-		save_rtc_state(create_rtc_state());
+		save_rtc_state();
 	} else if (valid_rtc_state()) {
 		ESP_LOGD(TAG, "Light %u RTC state 0x%08" PRIx32 " (checksum valid)", index_, read_rtc_state());
 		load_rtc_state();
+		update_relay();
 	} else {
 		ESP_LOGW(TAG, "Light %u RTC state 0x%08" PRIx32 " (checksum invalid)", index_, read_rtc_state());
-		save_rtc_state(create_rtc_state());
+		save_rtc_state();
 	}
 }
 
@@ -308,8 +309,12 @@ void Light::load_rtc_state() {
 	on_ = (value & (1 << RTC_STATE_BIT_ON)) != 0;
 }
 
-uint32_t Light::create_rtc_state() {
-	return rtc_checksum(
+inline uint32_t Light::read_rtc_state() {
+	return rtc_state_[index_ - 1];
+}
+
+void Light::save_rtc_state() {
+	rtc_state_[index_ - 1] = rtc_checksum(
 		  (primary_on_ << RTC_STATE_BIT_PRIMARY_ON)
 		| (secondary_on_ << RTC_STATE_BIT_SECONDARY_ON)
 		| (tertiary_on_ << RTC_STATE_BIT_TERTIARY_ON)
@@ -324,7 +329,12 @@ void Light::update_state() {
 	ESP_LOGI(TAG, "Light %u update state %d -> %d", index_, on_, on);
 	on_ = on;
 
-	uint32_t new_rtc_state = create_rtc_state();
+	save_rtc_state();
+	update_relay();
+	request_refresh();
+}
+
+void Light::update_relay() {
 	gpio_set_level(relay_pin_, on_ ? relay_active() : relay_inactive());
 
 #ifdef CONFIG_FREERTOS_SMP
@@ -337,11 +347,8 @@ void Light::update_state() {
 	 */
 	portDISABLE_INTERRUPTS();
 	gpio_hold_dis(relay_pin_);
-	save_rtc_state(new_rtc_state);
 	gpio_hold_en(relay_pin_);
 	portENABLE_INTERRUPTS();
-
-	request_refresh();
 }
 
 void Light::request_refresh() {
