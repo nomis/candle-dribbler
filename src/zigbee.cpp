@@ -127,7 +127,7 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 		endpoint.configure_cluster_list(*cluster_list);
 
 		ESP_ERROR_CHECK(esp_zb_ep_list_add_ep(endpoint_list_, cluster_list,
-			endpoint.id(), endpoint.profile_id(), endpoint.device_id()));
+			{endpoint.id(), endpoint.profile_id(), endpoint.device_id(), 0}));
 
 		endpoint.attach(*this);
 	}
