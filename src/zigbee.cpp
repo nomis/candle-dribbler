@@ -29,6 +29,7 @@ extern "C" {
 
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <mutex>
 #include <set>
 #include <string_view>
@@ -87,6 +88,32 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 		config.nwk_cfg.zed_cfg.keep_alive = 3000; /* milliseconds */
 	}
 
+	start_top_level_commissioning_ = std::make_shared<std::function<void()>>([this] {
+		if (state_ == ZigbeeState::RETRY) {
+			connect("retry", ESP_ZB_BDB_MODE_NETWORK_STEERING);
+		}
+	});
+
+	refresh_neighbours_ = std::make_shared<std::function<void()>>([this] {
+		if (zb_buffer_ == ZB_BUF_INVALID)
+			return;
+
+		zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(instance_->zb_buffer_, zb_nwk_nbr_iterator_params_t);
+		args->update_count = 0;
+		args->index = 0;
+		zb_buf_set_status(zb_buffer_, RET_OK);
+
+		new_neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
+		new_neighbours_->reserve(neighbours_->size());
+
+		zb_ret_t ret = zb_nwk_nbr_iterator_next(zb_buffer_, refresh_neighbours_cb);
+		if (ret != RET_OK) {
+			ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
+			new_neighbours_.reset();
+			schedule_after(refresh_neighbours_, 1000);
+		}
+	});
+
 	esp_zb_init(&config);
 
 	endpoint_list_ = esp_zb_ep_list_create();
@@ -123,14 +150,80 @@ void ZigbeeDevice::start() {
 }
 
 void ZigbeeDevice::run() {
-	esp_zb_main_loop_iteration();
-	ESP_LOGE(TAG, "Zigbee main loop stopped");
-	esp_restart();
+	while (true) {
+		assert(esp_zb_lock_acquire(portMAX_DELAY));
+		zboss_main_loop_iteration();
+		esp_zb_lock_release();
+
+		std::unique_lock lock{tasks_mutex_};
+		uint64_t now_us = esp_timer_get_time();
+
+		while (true) {
+			auto it = tasks_.begin();
+
+			if (it == tasks_.end() || it->first > now_us) {
+				break;
+			}
+
+			auto task = it->second;
+
+			tasks_.erase(it);
+
+			lock.unlock();
+			(*task)();
+			lock.lock();
+		}
+	}
+}
+
+void ZigbeeDevice::schedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms) {
+	assert(task);
+
+	uint64_t time_us = (uint64_t)time_ms * 1000U;
+	std::lock_guard lock{tasks_mutex_};
+
+	tasks_.insert({esp_timer_get_time() + time_us, task});
+}
+
+void ZigbeeDevice::schedule_after(std::function<void()> &&task, uint32_t time_ms) {
+	schedule_after(std::make_shared<std::function<void()>>(task), time_ms);
+}
+
+void ZigbeeDevice::reschedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms) {
+	assert(task);
+
+	uint64_t time_us = (uint64_t)time_ms * 1000U;
+	std::lock_guard lock{tasks_mutex_};
+	auto it = tasks_.begin();
+
+	while (it != tasks_.end()) {
+		if (it->second == task) {
+			it = tasks_.erase(it);
+		} else {
+			it++;
+		}
+	}
+
+	tasks_.insert({esp_timer_get_time() + time_us, task});
+}
+
+void ZigbeeDevice::schedule_cancel(const std::shared_ptr<std::function<void()>> &task) {
+	assert(task);
+
+	std::lock_guard lock{tasks_mutex_};
+	auto it = tasks_.begin();
+
+	while (it != tasks_.end()) {
+		if (it->second == task) {
+			it = tasks_.erase(it);
+		} else {
+			it++;
+		}
+	}
 }
 
 void ZigbeeDevice::connected() {
-	esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
-	esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+	reschedule_after(refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
 
 	for (auto& [ep_id, ep] : endpoints_) {
 		ep.configure_reporting();
@@ -138,7 +231,7 @@ void ZigbeeDevice::connected() {
 }
 
 void ZigbeeDevice::disconnected() {
-	esp_zb_scheduler_alarm_cancel(scheduled_refresh_neighbours, 0);
+	schedule_cancel(refresh_neighbours_);
 }
 
 esp_err_t ZigbeeDevice::set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message) {
@@ -486,7 +579,7 @@ void ZigbeeDevice::connect(const char *why, uint8_t mode) {
 	cancel_retry();
 
 	ESP_LOGD(TAG, "Connecting (%s)", why);
-	instance_->update_state(ZigbeeState::CONNECTING);
+	update_state(ZigbeeState::CONNECTING);
 
 	esp_err_t err = esp_zb_bdb_start_top_level_commissioning(mode);
 	if (err != ESP_OK) {
@@ -499,51 +592,43 @@ void ZigbeeDevice::retry(bool quiet) {
 	if (!quiet) {
 		ESP_LOGD(TAG, "Retry");
 	}
-	instance_->update_state(ZigbeeState::RETRY);
-	esp_zb_scheduler_alarm(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING, 1000);
+	update_state(ZigbeeState::RETRY);
+	schedule_after(start_top_level_commissioning_, 1000);
 }
 
 void ZigbeeDevice::cancel_retry() {
-	esp_zb_scheduler_alarm_cancel(start_top_level_commissioning, ESP_ZB_BDB_MODE_NETWORK_STEERING);
-}
-
-void ZigbeeDevice::start_top_level_commissioning(uint8_t mode) {
-	if (instance_->state_ == ZigbeeState::RETRY) {
-		instance_->connect("retry", mode);
-	}
+	schedule_cancel(start_top_level_commissioning_);
 }
 
 void ZigbeeDevice::join_network() {
-	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::JOIN), 0);
+	schedule([this] { join_or_leave_network(ZigbeeAction::JOIN); });
 }
 
 void ZigbeeDevice::join_or_leave_network() {
-	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::JOIN_OR_LEAVE), 0);
+	schedule([this] { join_or_leave_network(ZigbeeAction::JOIN_OR_LEAVE); });
 }
 
 void ZigbeeDevice::leave_network() {
-	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_network_do, static_cast<uint8_t>(ZigbeeAction::LEAVE), 0);
+	schedule([this] { join_or_leave_network(ZigbeeAction::LEAVE); });
 }
 
 void ZigbeeDevice::print_bindings() {
-	esp_zb_scheduler_alarm(&ZigbeeDevice::scheduled_print_bindings, 0, 0);
-}
+	schedule([] {
+		uint8_t buffer = zb_buf_get_out();
+		if (buffer == ZB_BUF_INVALID)
+			return;
 
-void ZigbeeDevice::scheduled_print_bindings(uint8_t param) {
-	uint8_t buffer = zb_buf_get_out();
-	if (buffer == ZB_BUF_INVALID)
-		return;
+		zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
+		args->start_index = 0;
+		args->dst_addr = esp_zb_get_short_address();
+		zb_buf_set_status(buffer, RET_OK);
 
-	zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
-	args->start_index = 0;
-	args->dst_addr = esp_zb_get_short_address();
-	zb_buf_set_status(buffer, RET_OK);
-
-	zb_ret_t ret = zb_zdo_mgmt_bind_req(buffer, print_bindings_cb);
-	if (ret == 0xFF) {
-		ESP_LOGE(TAG, "Error getting bindings (start_index=%u)", args->start_index);
-		zb_buf_free(buffer);
-	}
+		zb_ret_t ret = zb_zdo_mgmt_bind_req(buffer, print_bindings_cb);
+		if (ret == 0xFF) {
+			ESP_LOGE(TAG, "Error getting bindings (start_index=%u)", args->start_index);
+			zb_buf_free(buffer);
+		}
+	});
 }
 
 void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
@@ -612,10 +697,6 @@ std::shared_ptr<const std::vector<ZigbeeNeighbour>> ZigbeeDevice::get_neighbours
 	return neighbours_;
 }
 
-void ZigbeeDevice::scheduled_network_do(uint8_t param) {
-	instance_->join_or_leave_network(static_cast<ZigbeeAction>(param));
-}
-
 void ZigbeeDevice::join_or_leave_network(ZigbeeAction action) {
 	ZigbeeAction toggle_action;
 
@@ -667,30 +748,10 @@ void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 	update_state(state);
 }
 
-void ZigbeeDevice::scheduled_refresh_neighbours(uint8_t param) {
-	if (instance_->zb_buffer_ == ZB_BUF_INVALID)
-		return;
-
-	zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(instance_->zb_buffer_, zb_nwk_nbr_iterator_params_t);
-	args->update_count = 0;
-	args->index = 0;
-	zb_buf_set_status(instance_->zb_buffer_, RET_OK);
-
-	instance_->new_neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
-	instance_->new_neighbours_->reserve(instance_->neighbours_->size());
-
-	zb_ret_t ret = zb_nwk_nbr_iterator_next(instance_->zb_buffer_, refresh_neighbours_cb);
-	if (ret != RET_OK) {
-		ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
-		instance_->new_neighbours_.reset();
-		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, 1000);
-	}
-}
-
 void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 	if (zb_buf_get_status(buffer) != RET_OK) {
 		ESP_LOGE(TAG, "Buffer error refreshing neighbours");
-		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+		instance_->schedule_after(instance_->refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
 		return;
 	}
 
@@ -708,7 +769,7 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		if (instance_->neighbour_table_update_count_ != args->update_count) {
 			ESP_LOGD(TAG, "Neighbour table updated while reading");
 			instance_->new_neighbours_.reset();
-			esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, 1000);
+			instance_->schedule_after(instance_->refresh_neighbours_, 1000);
 			return;
 		}
 
@@ -748,7 +809,7 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		if (ret != RET_OK) {
 			ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
 			instance_->new_neighbours_.reset();
-			esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, 1000);
+			instance_->schedule_after(instance_->refresh_neighbours_, 1000);
 		}
 	} else {
 		if (instance_->new_neighbours_) {
@@ -761,7 +822,7 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 			instance_->listener_.zigbee_neighbours_updated(neighbours);
 		}
 
-		esp_zb_scheduler_alarm(scheduled_refresh_neighbours, 0, REFRESH_NEIGHBOURS_MS);
+		instance_->schedule_after(instance_->refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
 	}
 }
 

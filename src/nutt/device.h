@@ -22,8 +22,10 @@
 #include <esp_attr.h>
 #include <esp_partition.h>
 
+#include <atomic>
 #include <memory>
 #include <functional>
+#include <unordered_map>
 #include <vector>
 
 #include "thread.h"
@@ -196,7 +198,7 @@ public:
 
 	void add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints);
 	void start();
-	void request_refresh(Light &light);
+	void request_refresh(const Light &light);
 
 	inline UserInterface& ui() { return ui_; };
 	void join_network();
@@ -227,15 +229,8 @@ private:
 #endif
 	static constexpr const bool OTA_SUPPORTED = CONFIG_NUTT_SUPPORT_OTA;
 
-	static void scheduled_refresh(uint8_t param);
-	static void scheduled_uptime(uint8_t param);
-	static void scheduled_connected(uint8_t param);
-
 	void reload_app_info(bool full);
-	void do_refresh(uint8_t light);
 	unsigned long run_tasks() override;
-
-	static Device *instance_;
 
 	UserInterface &ui_;
 	ZigbeeDevice &zigbee_;
@@ -246,11 +241,14 @@ private:
 	device::BasicCluster basic_cl_;
 	device::IdentifyCluster identify_cl_;
 	device::UptimeCluster uptime_cl_;
+	std::shared_ptr<std::function<void()>> uptime_task_;
 	device::ConnectedCluster connected_cl_;
+	std::shared_ptr<std::function<void()>> connected_task_;
 	device::UplinkCluster uplink_cl_;
 	device::RSSICluster rssi_cl_;
 	std::vector<std::reference_wrapper<device::SoftwareCluster>> software_cls_;
 	std::unordered_map<uint8_t,Light&> lights_;
+	std::unordered_map<uint8_t,std::shared_ptr<std::function<void()>>> light_tasks_;
 	bool ota_validated_{false};
 	std::atomic<bool> core_dump_present_{false};
 };

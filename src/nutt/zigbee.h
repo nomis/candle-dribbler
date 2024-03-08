@@ -22,9 +22,12 @@
 #include <sdkconfig.h>
 
 #include <functional>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -199,13 +202,19 @@ public:
 	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
 	void print_bindings();
 
+	inline void schedule(const std::shared_ptr<std::function<void()>> &task) { schedule_after(task, 0); }
+	inline void schedule(std::function<void()> &&task) { schedule_after(std::move(task), 0); }
+	void schedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms);
+	void schedule_after(std::function<void()> &&task, uint32_t time_ms);
+	inline void reschedule(const std::shared_ptr<std::function<void()>> &task) { reschedule_after(task, 0); }
+	void reschedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms);
+	void schedule_cancel(const std::shared_ptr<std::function<void()>> &task);
+
 private:
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
-	static void scheduled_network_do(uint8_t param);
-	static void scheduled_refresh_neighbours(uint8_t param);
 	static void refresh_neighbours_cb(uint8_t buffer);
 	static void scheduled_print_bindings(uint8_t param);
 	static void print_bindings_cb(uint8_t buffer);
@@ -227,6 +236,11 @@ private:
 	void join_or_leave_network(ZigbeeAction action);
 
 	static ZigbeeDevice *instance_;
+
+	std::mutex tasks_mutex_;
+	std::multimap<uint64_t,std::shared_ptr<std::function<void()>>> tasks_;
+	std::shared_ptr<std::function<void()>> start_top_level_commissioning_;
+	std::shared_ptr<std::function<void()>> refresh_neighbours_;
 
 	ZigbeeListener &listener_;
 	esp_zb_ep_list_t *endpoint_list_{nullptr};

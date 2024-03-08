@@ -32,6 +32,7 @@
 #include <chrono>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -49,8 +50,6 @@ using namespace std::chrono_literals;
 
 namespace nutt {
 
-Device *Device::instance_{nullptr};
-
 Device::Device(UserInterface &ui) : WakeupThread("Device", true), ui_(ui),
 		zigbee_(*new ZigbeeDevice{*this}),
 		basic_cl_(*this, "uuid.uk",
@@ -58,8 +57,15 @@ Device::Device(UserInterface &ui) : WakeupThread("Device", true), ui_(ui),
 				? "candle-dribbler" : "router",
 			"https://github.com/nomis/candle-dribbler"),
 		identify_cl_(ui_) {
-	assert(!instance_);
-	instance_ = this;
+	uptime_task_ = std::make_shared<std::function<void()>>([this] {
+		uint32_t next_ms = uptime_cl_.update(core_dump_present_);
+		zigbee_.reschedule_after(uptime_task_, next_ms);
+	});
+
+	connected_task_ = std::make_shared<std::function<void()>>([this] {
+		uint32_t next_ms = connected_cl_.update();
+		zigbee_.reschedule_after(connected_task_, next_ms);
+	});
 
 	part_current_ = esp_ota_get_running_partition();
 	part_next_ = esp_ota_get_next_update_partition(nullptr);
@@ -118,6 +124,11 @@ Device::Device(UserInterface &ui) : WakeupThread("Device", true), ui_(ui),
 
 void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint>> &&endpoints) {
 	lights_.emplace(light.index(), light);
+	light_tasks_.emplace(light.index(),
+			std::make_shared<std::function<void()>>([&light] {
+		ESP_LOGD(TAG, "Refresh light %u", light.index());
+		light.refresh();
+	}));
 
 	for (auto ep : endpoints)
 		zigbee_.add(ep);
@@ -126,24 +137,15 @@ void Device::add(Light &light, std::vector<std::reference_wrapper<ZigbeeEndpoint
 void Device::start() {
 	zigbee_.start();
 	uptime_cl_.update(core_dump_present_);
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, std::chrono::milliseconds(1min).count());
+	zigbee_.schedule_after(uptime_task_, std::chrono::milliseconds(1min).count());
 
 	std::thread t;
 	make_thread(t, "device_main", 4096, 19, &Device::run_loop, this);
 	t.detach();
 }
 
-void Device::request_refresh(Light &light) {
-	esp_zb_scheduler_alarm(&Device::scheduled_refresh, light.index(), 1);
-}
-
-void Device::do_refresh(uint8_t light) {
-	ESP_LOGD(TAG, "Refresh light %u", light);
-	lights_.at(light).refresh();
-}
-
-void Device::scheduled_refresh(uint8_t param) {
-	instance_->do_refresh(param);
+void Device::request_refresh(const Light &light) {
+	zigbee_.reschedule(light_tasks_.at(light.index()));
 }
 
 void Device::join_network() {
@@ -291,15 +293,7 @@ void Device::erase_core_dump() {
 	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
 	ui_.core_dump(core_dump_present_);
 
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 1, 0);
-}
-
-void Device::scheduled_uptime(uint8_t param) {
-	esp_zb_scheduler_alarm(&Device::scheduled_uptime, 0, instance_->uptime_cl_.update(instance_->core_dump_present_));
-}
-
-void Device::scheduled_connected(uint8_t param) {
-	esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, instance_->connected_cl_.update());
+	zigbee_.reschedule(uptime_task_);
 }
 
 unsigned long Device::run_tasks() {
@@ -458,12 +452,10 @@ void Device::zigbee_network_state(bool configured, ZigbeeState state,
 		}
 
 		connected_cl_.connected();
-		esp_zb_scheduler_alarm_cancel(&Device::scheduled_connected, 0);
-		esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, 1000);
+		zigbee_.reschedule_after(connected_task_, 1000);
 	} else {
 		connected_cl_.disconnected();
-		esp_zb_scheduler_alarm_cancel(&Device::scheduled_connected, 0);
-		esp_zb_scheduler_alarm(&Device::scheduled_connected, 0, 1000);
+		zigbee_.reschedule_after(connected_task_, 1000);
 	}
 }
 
