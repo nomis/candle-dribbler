@@ -19,6 +19,7 @@
 #include "nutt/zigbee.h"
 
 #include <esp_err.h>
+#include <esp_ieee802154_types.h>
 #include <esp_log.h>
 #include <esp_mac.h>
 #include <esp_system.h>
@@ -39,6 +40,15 @@ extern "C" {
 
 #include "nutt/ota.h"
 #include "nutt/thread.h"
+
+/* Check compatibility of esp-zigbee-lib and esp-zboss-lib with the current IDF */
+static_assert(sizeof(esp_ieee802154_frame_info_t) == 16);
+static_assert(offsetof(esp_ieee802154_frame_info_t, pending) == 0);
+static_assert(offsetof(esp_ieee802154_frame_info_t, process) == 1);
+static_assert(offsetof(esp_ieee802154_frame_info_t, channel) == 2);
+static_assert(offsetof(esp_ieee802154_frame_info_t, rssi) == 3);
+static_assert(offsetof(esp_ieee802154_frame_info_t, lqi) == 4);
+static_assert(offsetof(esp_ieee802154_frame_info_t, timestamp) == 8);
 
 extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
 	nutt::ZigbeeDevice::instance_->signal_handler(
