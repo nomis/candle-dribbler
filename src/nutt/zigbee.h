@@ -201,6 +201,7 @@ public:
 	uint16_t get_parent();
 	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
 	void print_bindings();
+	void print_stats() const;
 
 	inline void schedule(const std::shared_ptr<std::function<void()>> &task) { schedule_after(task, 0); }
 	inline void schedule(std::function<void()> &&task) { schedule_after(std::move(task), 0); }
@@ -241,6 +242,12 @@ private:
 	std::multimap<uint64_t,std::shared_ptr<std::function<void()>>> tasks_;
 	std::shared_ptr<std::function<void()>> start_top_level_commissioning_;
 	std::shared_ptr<std::function<void()>> refresh_neighbours_;
+
+	mutable std::mutex stats_mutex_;
+	uint64_t min_loop_us_{UINT64_MAX};
+	uint64_t max_loop_us_{0};
+	uint64_t total_loop_us_{0};
+	uint64_t total_loop_count_{0};
 
 	ZigbeeListener &listener_;
 	esp_zb_ep_list_t *endpoint_list_{nullptr};

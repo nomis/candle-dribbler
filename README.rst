@@ -151,6 +151,8 @@ UART Commands
      - Print memory information
    * - ``n``
      - Print Zigbee neighbours
+   * - ``s``
+     - Print Zigbee main loop stats
    * - ``t``
      - Print task list and stats
    * - ``R``

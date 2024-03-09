@@ -151,9 +151,23 @@ void ZigbeeDevice::start() {
 
 void ZigbeeDevice::run() {
 	while (true) {
+		uint64_t start_us, stop_us;
+
 		assert(esp_zb_lock_acquire(portMAX_DELAY));
+		start_us = esp_timer_get_time();
 		zboss_main_loop_iteration();
+		stop_us = esp_timer_get_time();
 		esp_zb_lock_release();
+
+		{
+			uint64_t duration_us = stop_us - start_us;
+			std::lock_guard lock{stats_mutex_};
+
+			min_loop_us_ = std::min(min_loop_us_, duration_us);
+			max_loop_us_ = std::max(max_loop_us_, duration_us);
+			total_loop_us_ += duration_us;
+			total_loop_count_++;
+		}
 
 		std::unique_lock lock{tasks_mutex_};
 		uint64_t now_us = esp_timer_get_time();
@@ -685,6 +699,23 @@ void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
 	}
 
 	zb_buf_free(buffer);
+}
+
+void ZigbeeDevice::print_stats() const {
+	std::unique_lock lock{stats_mutex_};
+	uint64_t min_loop_us = min_loop_us_;
+	uint64_t max_loop_us = max_loop_us_;
+	uint64_t total_loop_us = total_loop_us_;
+	uint64_t total_loop_count = total_loop_count_;
+
+	lock.unlock();
+
+	if (total_loop_count) {
+		ESP_LOGI(TAG, "Stats: count=%" PRIu64 " min=%" PRIu64 "us avg=%" PRIu64 "us max=%" PRIu64 "us",
+			total_loop_count, min_loop_us, total_loop_us / total_loop_count, max_loop_us);
+	} else {
+		ESP_LOGI(TAG, "Stats: count=%" PRIu64, total_loop_count);
+	}
 }
 
 uint16_t ZigbeeDevice::get_parent() {

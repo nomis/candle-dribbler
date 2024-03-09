@@ -206,6 +206,7 @@ public:
 	void leave_network();
 	void print_bindings();
 	void print_neighbours();
+	void print_stats();
 	void print_core_dump(bool full);
 	void erase_core_dump();
 

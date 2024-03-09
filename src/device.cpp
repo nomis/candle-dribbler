@@ -228,6 +228,9 @@ void Device::print_neighbours() {
 	}
 }
 
+void Device::print_stats() {
+	zigbee_.print_stats();
+}
 
 void Device::print_core_dump(bool full) {
 	esp_err_t err = esp_core_dump_image_check();
