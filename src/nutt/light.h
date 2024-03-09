@@ -83,7 +83,7 @@ private:
 
 	const char *name_;
 	const uint16_t attr_id_;
-	uint8_t state_;
+	uint8_t state_{0};
 };
 
 class PrimaryCluster: public BooleanCluster {

@@ -78,7 +78,7 @@ static inline std::string zigbee_address_string(const uint16_t address) {
 class ZigbeeCluster {
 protected:
 	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role);
-	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, std::vector<uint16_t> attrs);
+	ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, const std::vector<uint16_t> &attrs);
 	~ZigbeeCluster() = default;
 
 public:

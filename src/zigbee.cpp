@@ -638,7 +638,6 @@ void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
 		return;
 	}
 
-	zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
 	zb_zdo_mgmt_bind_resp_t *resp = reinterpret_cast<zb_zdo_mgmt_bind_resp_t*>(zb_buf_begin(buffer));
 	zb_zdo_binding_table_record_t *entry = reinterpret_cast<zb_zdo_binding_table_record_t*>(
 		reinterpret_cast<uint8_t*>(zb_buf_begin(buffer)) + sizeof(zb_zdo_mgmt_bind_resp_t));
@@ -669,7 +668,7 @@ void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
 			uint8_t next_index = resp->start_index;
 
 			zb_buf_reuse(buffer);
-			args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
+			zb_zdo_mgmt_bind_param_t *args = ZB_BUF_GET_PARAM(buffer, zb_zdo_mgmt_bind_param_t);
 			args->start_index = next_index;
 			args->dst_addr = esp_zb_get_short_address();
 			zb_buf_set_status(buffer, RET_OK);
@@ -909,7 +908,7 @@ ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role)
 		: id_(id), role_(role) {
 }
 
-ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, std::vector<uint16_t> attrs)
+ZigbeeCluster::ZigbeeCluster(uint16_t id, esp_zb_zcl_cluster_role_t role, const std::vector<uint16_t> &attrs)
 		: id_(id), role_(role), attrs_(attrs) {
 }
 

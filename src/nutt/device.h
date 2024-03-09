@@ -62,7 +62,7 @@ private:
 
 class IdentifyCluster: public ZigbeeCluster {
 public:
-	IdentifyCluster(UserInterface &ui);
+	explicit IdentifyCluster(UserInterface &ui);
 	~IdentifyCluster() = default;
 
 	void configure_cluster_list(esp_zb_cluster_list_t &cluster_list) override;
