@@ -20,6 +20,7 @@
 
 #include <esp_err.h>
 #include <esp_log.h>
+#include <esp_task_wdt.h>
 #include <nvs_flash.h>
 #include <driver/gpio.h>
 
@@ -34,12 +35,15 @@ static_assert(nutt::Device::NUM_EP_PER_DEVICE + MAX_LIGHTS * nutt::Light::NUM_EP
 	"You'll need to ask Espressif to let you use more endpoints");
 
 extern "C" void app_main() {
+	ESP_ERROR_CHECK(esp_task_wdt_add(nullptr));
+
 	esp_err_t err = nvs_flash_init();
 	if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
 		ESP_ERROR_CHECK(nvs_flash_erase());
 		err = nvs_flash_init();
 	}
 	ESP_ERROR_CHECK(err);
+	ESP_ERROR_CHECK(esp_task_wdt_reset());
 
 	auto &logging = *new Logging{};
 
@@ -59,13 +63,18 @@ extern "C" void app_main() {
 	if (MAX_LIGHTS >= 6) (new Light{6, GPIO_NUM_0,  SWITCH_ACTIVE_LOW,  GPIO_NUM_23, RELAY_ACTIVE_LOW })->attach(device);
 	if (MAX_LIGHTS >= 7) (new Light{7, GPIO_NUM_7,  SWITCH_ACTIVE_LOW,  GPIO_NUM_15, RELAY_ACTIVE_LOW })->attach(device);
 	if (MAX_LIGHTS >= 8) (new Light{8, GPIO_NUM_6,  SWITCH_ACTIVE_LOW,  GPIO_NUM_5,  RELAY_ACTIVE_LOW })->attach(device);
+
+	ESP_ERROR_CHECK(esp_task_wdt_reset());
 	device.start();
 
 	ui.attach(device);
 	ui.start();
+	ESP_ERROR_CHECK(esp_task_wdt_reset());
 
 	TaskStatus_t status;
 
 	vTaskGetInfo(nullptr, &status, pdTRUE, eRunning);
 	ESP_LOGD(TAG, "Free stack: %lu", status.usStackHighWaterMark);
+
+	ESP_ERROR_CHECK(esp_task_wdt_delete(nullptr));
 }
