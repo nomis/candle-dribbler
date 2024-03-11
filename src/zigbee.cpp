@@ -29,6 +29,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <functional>
 #include <mutex>
@@ -155,46 +156,37 @@ void ZigbeeDevice::start() {
 	}
 
 	std::thread t;
-	make_thread(t, "zigbee_main", 8192, 5, &ZigbeeDevice::run, this);
+	make_thread(t, "zigbee_main", 8192, 5, &ZigbeeDevice::run_main, this);
+	t.detach();
+	make_thread(t, "zigbee_task", 8192, 5, &ZigbeeDevice::run_tasks, this);
 	t.detach();
 }
 
-void ZigbeeDevice::run() {
+void ZigbeeDevice::run_main() {
+	esp_zb_main_loop_iteration();
+	assert(false);
+}
+
+void ZigbeeDevice::run_tasks() {
+	std::unique_lock lock{tasks_mutex_};
+
 	while (true) {
-		uint64_t start_us, stop_us;
+		auto now = clock::now();
+		auto it = tasks_.begin();
 
-		assert(esp_zb_lock_acquire(portMAX_DELAY));
-		start_us = esp_timer_get_time();
-		zboss_main_loop_iteration();
-		stop_us = esp_timer_get_time();
-		esp_zb_lock_release();
-
-		{
-			uint64_t duration_us = stop_us - start_us;
-			std::lock_guard lock{stats_mutex_};
-
-			min_loop_us_ = std::min(min_loop_us_, duration_us);
-			max_loop_us_ = std::max(max_loop_us_, duration_us);
-			total_loop_us_ += duration_us;
-			total_loop_count_++;
-		}
-
-		std::unique_lock lock{tasks_mutex_};
-		uint64_t now_us = esp_timer_get_time();
-
-		while (true) {
-			auto it = tasks_.begin();
-
-			if (it == tasks_.end() || it->first > now_us) {
-				break;
-			}
-
+		if (it == tasks_.end()) {
+			tasks_cv_.wait(lock);
+		} else if (it->first > now) {
+			tasks_cv_.wait_until(lock, it->first);
+		} else {
 			auto task = it->second;
 
 			tasks_.erase(it);
 
 			lock.unlock();
+			assert(esp_zb_lock_acquire(portMAX_DELAY));
 			(*task)();
+			esp_zb_lock_release();
 			lock.lock();
 		}
 	}
@@ -203,10 +195,11 @@ void ZigbeeDevice::run() {
 void ZigbeeDevice::schedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms) {
 	assert(task);
 
-	uint64_t time_us = (uint64_t)time_ms * 1000U;
 	std::lock_guard lock{tasks_mutex_};
+	auto now = clock::now();
 
-	tasks_.insert({esp_timer_get_time() + time_us, task});
+	tasks_.insert({now + std::chrono::milliseconds(time_ms), task});
+	tasks_cv_.notify_all();
 }
 
 void ZigbeeDevice::schedule_after(std::function<void()> &&task, uint32_t time_ms) {
@@ -216,8 +209,8 @@ void ZigbeeDevice::schedule_after(std::function<void()> &&task, uint32_t time_ms
 void ZigbeeDevice::reschedule_after(const std::shared_ptr<std::function<void()>> &task, uint32_t time_ms) {
 	assert(task);
 
-	uint64_t time_us = (uint64_t)time_ms * 1000U;
 	std::lock_guard lock{tasks_mutex_};
+	auto now = clock::now();
 	auto it = tasks_.begin();
 
 	while (it != tasks_.end()) {
@@ -228,7 +221,8 @@ void ZigbeeDevice::reschedule_after(const std::shared_ptr<std::function<void()>>
 		}
 	}
 
-	tasks_.insert({esp_timer_get_time() + time_us, task});
+	tasks_.insert({now + std::chrono::milliseconds(time_ms), task});
+	tasks_cv_.notify_all();
 }
 
 void ZigbeeDevice::schedule_cancel(const std::shared_ptr<std::function<void()>> &task) {
@@ -709,23 +703,6 @@ void ZigbeeDevice::print_bindings_cb(uint8_t buffer) {
 	}
 
 	zb_buf_free(buffer);
-}
-
-void ZigbeeDevice::print_stats() const {
-	std::unique_lock lock{stats_mutex_};
-	uint64_t min_loop_us = min_loop_us_;
-	uint64_t max_loop_us = max_loop_us_;
-	uint64_t total_loop_us = total_loop_us_;
-	uint64_t total_loop_count = total_loop_count_;
-
-	lock.unlock();
-
-	if (total_loop_count) {
-		ESP_LOGI(TAG, "Stats: count=%" PRIu64 " min=%" PRIu64 "us avg=%" PRIu64 "us max=%" PRIu64 "us",
-			total_loop_count, min_loop_us, total_loop_us / total_loop_count, max_loop_us);
-	} else {
-		ESP_LOGI(TAG, "Stats: count=%" PRIu64, total_loop_count);
-	}
 }
 
 uint16_t ZigbeeDevice::get_parent() {

@@ -197,8 +197,6 @@ void UserInterface::uart_handler() {
 				print_memory();
 			} else if (device && buf[0] == 'n') {
 				device->print_neighbours();
-			} else if (device && buf[0] == 's') {
-				device->print_stats();
 			} else if (buf[0] == 'R') {
 				esp_restart();
 			} else if (buf[0] == 't') {

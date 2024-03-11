@@ -21,6 +21,8 @@
 #include <esp_zigbee_core.h>
 #include <sdkconfig.h>
 
+#include <chrono>
+#include <condition_variable>
 #include <functional>
 #include <map>
 #include <memory>
@@ -201,7 +203,6 @@ public:
 	uint16_t get_parent();
 	std::shared_ptr<const std::vector<ZigbeeNeighbour>> get_neighbours();
 	void print_bindings();
-	void print_stats() const;
 
 	inline void schedule(const std::shared_ptr<std::function<void()>> &task) { schedule_after(task, 0); }
 	inline void schedule(std::function<void()> &&task) { schedule_after(std::move(task), 0); }
@@ -212,6 +213,8 @@ public:
 	void schedule_cancel(const std::shared_ptr<std::function<void()>> &task);
 
 private:
+	using clock = std::chrono::steady_clock;
+
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
 	static void start_top_level_commissioning(uint8_t mode_mask);
@@ -220,7 +223,8 @@ private:
 	static void scheduled_print_bindings(uint8_t param);
 	static void print_bindings_cb(uint8_t buffer);
 
-	void run();
+	void run_main();
+	void run_tasks();
 	void connect(const char *why, uint8_t mode);
 	void retry(bool quiet = false);
 	void cancel_retry();
@@ -239,15 +243,10 @@ private:
 	static ZigbeeDevice *instance_;
 
 	std::mutex tasks_mutex_;
-	std::multimap<uint64_t,std::shared_ptr<std::function<void()>>> tasks_;
+	std::condition_variable tasks_cv_;
+	std::multimap<std::chrono::time_point<clock>,std::shared_ptr<std::function<void()>>> tasks_;
 	std::shared_ptr<std::function<void()>> start_top_level_commissioning_;
 	std::shared_ptr<std::function<void()>> refresh_neighbours_;
-
-	mutable std::mutex stats_mutex_;
-	uint64_t min_loop_us_{UINT64_MAX};
-	uint64_t max_loop_us_{0};
-	uint64_t total_loop_us_{0};
-	uint64_t total_loop_count_{0};
 
 	ZigbeeListener &listener_;
 	esp_zb_ep_list_t *endpoint_list_{nullptr};
