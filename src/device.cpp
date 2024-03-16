@@ -166,6 +166,7 @@ void Device::print_bindings() {
 
 void Device::print_neighbours() {
 	auto neighbours = zigbee_.get_neighbours();
+	auto parent = zigbee_.get_parent();
 
 	ESP_LOGI(TAG, "Neighbours (%zu):", neighbours->size());
 
@@ -221,9 +222,10 @@ void Device::print_neighbours() {
 			break;
 		}
 
-		ESP_LOGI(TAG, "%s/%04x %c %u %c LQI %u RSSI %d",
+		ESP_LOGI(TAG, "%s/%04x %c %3u %c%c LQI %3u RSSI %4d",
 			zigbee_address_string(neighbour.long_addr).c_str(),
 			neighbour.short_addr, type, neighbour.depth, relationship,
+			neighbour.short_addr == parent ? '*' : ' ',
 			neighbour.lqi, neighbour.rssi);
 	}
 }
