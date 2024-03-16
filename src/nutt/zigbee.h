@@ -217,10 +217,8 @@ private:
 
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
-	static void start_top_level_commissioning(uint8_t mode_mask);
 	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
 	static void refresh_neighbours_cb(uint8_t buffer);
-	static void scheduled_print_bindings(uint8_t param);
 	static void print_bindings_cb(uint8_t buffer);
 
 	void run_main();
