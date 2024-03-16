@@ -109,7 +109,7 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 		if (zb_buffer_ == ZB_BUF_INVALID)
 			return;
 
-		zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(instance_->zb_buffer_, zb_nwk_nbr_iterator_params_t);
+		zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(zb_buffer_, zb_nwk_nbr_iterator_params_t);
 		args->update_count = 0;
 		args->index = 0;
 		zb_buf_set_status(zb_buffer_, RET_OK);
@@ -745,7 +745,7 @@ void ZigbeeDevice::join_or_leave_network(ZigbeeAction action) {
 		esp_zb_get_long_address(param.device_address);
 		param.dst_nwk_addr = 0xffff;
 		esp_zb_zdo_device_leave_req(&param, nullptr, nullptr);
-		instance_->update_state(ZigbeeState::DISCONNECTED);
+		update_state(ZigbeeState::DISCONNECTED);
 	}
 }
 
