@@ -105,25 +105,7 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 		}
 	});
 
-	refresh_neighbours_ = std::make_shared<std::function<void()>>([this] {
-		if (zb_buffer_ == ZB_BUF_INVALID)
-			return;
-
-		zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(zb_buffer_, zb_nwk_nbr_iterator_params_t);
-		args->update_count = 0;
-		args->index = 0;
-		zb_buf_set_status(zb_buffer_, RET_OK);
-
-		new_neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
-		new_neighbours_->reserve(neighbours_->size());
-
-		zb_ret_t ret = zb_nwk_nbr_iterator_next(zb_buffer_, refresh_neighbours_cb);
-		if (ret != RET_OK) {
-			ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
-			new_neighbours_.reset();
-			schedule_after(refresh_neighbours_, 1000);
-		}
-	});
+	refresh_neighbours_ = std::make_shared<std::function<void()>>([this] { refresh_neighbours(); });
 
 	esp_zb_init(&config);
 
@@ -146,7 +128,7 @@ void ZigbeeDevice::add(ZigbeeEndpoint &endpoint) {
 
 void ZigbeeDevice::start() {
 	ESP_ERROR_CHECK(esp_zb_device_register(endpoint_list_));
-	esp_zb_core_action_handler_register(action_handler);
+	esp_zb_core_action_handler_register(action_handler_cb);
 	ESP_ERROR_CHECK(esp_zb_set_primary_network_channel_set(ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK));
 	ESP_ERROR_CHECK(esp_zb_start(false));
 
@@ -422,14 +404,19 @@ esp_err_t ZigbeeDevice::ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t
 	return ESP_OK;
 }
 
+esp_err_t ZigbeeDevice::action_handler_cb(esp_zb_core_action_callback_id_t callback_id,
+		const void *data) {
+	return instance_->action_handler(callback_id, data);
+}
+
 esp_err_t ZigbeeDevice::action_handler(esp_zb_core_action_callback_id_t callback_id,
 		const void *data) {
 	switch (callback_id) {
 	case ESP_ZB_CORE_SET_ATTR_VALUE_CB_ID:
-		return instance_->set_attr_value(reinterpret_cast<const esp_zb_zcl_set_attr_value_message_t*>(data));
+		return set_attr_value(reinterpret_cast<const esp_zb_zcl_set_attr_value_message_t*>(data));
 
 	case ESP_ZB_CORE_OTA_UPGRADE_VALUE_CB_ID:
-		return instance_->ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_upgrade_value_message_t*>(data));
+		return ota_upgrade(reinterpret_cast<const esp_zb_zcl_ota_upgrade_value_message_t*>(data));
 
 	case ESP_ZB_CORE_CMD_DEFAULT_RESP_CB_ID:
 		break;
@@ -766,9 +753,33 @@ void ZigbeeDevice::update_state(ZigbeeState state, bool configured) {
 }
 
 void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
+	instance_->refresh_neighbours(buffer);
+}
+
+void ZigbeeDevice::refresh_neighbours() {
+	if (zb_buffer_ == ZB_BUF_INVALID)
+		return;
+
+	zb_nwk_nbr_iterator_params_t *args = ZB_BUF_GET_PARAM(zb_buffer_, zb_nwk_nbr_iterator_params_t);
+	args->update_count = 0;
+	args->index = 0;
+	zb_buf_set_status(zb_buffer_, RET_OK);
+
+	new_neighbours_ = std::make_shared<std::vector<ZigbeeNeighbour>>();
+	new_neighbours_->reserve(neighbours_->size());
+
+	zb_ret_t ret = zb_nwk_nbr_iterator_next(zb_buffer_, refresh_neighbours_cb);
+	if (ret != RET_OK) {
+		ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
+		new_neighbours_.reset();
+		schedule_after(refresh_neighbours_, 1000);
+	}
+}
+
+void ZigbeeDevice::refresh_neighbours(uint8_t buffer) {
 	if (zb_buf_get_status(buffer) != RET_OK) {
 		ESP_LOGE(TAG, "Buffer error refreshing neighbours");
-		instance_->schedule_after(instance_->refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
+		schedule_after(refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
 		return;
 	}
 
@@ -776,17 +787,17 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 	zb_nwk_nbr_iterator_entry_t *entry = reinterpret_cast<zb_nwk_nbr_iterator_entry_t*>(zb_buf_begin(buffer));
 
 	if (args->index == 0) {
-		instance_->neighbour_table_update_count_ = args->update_count;
+		neighbour_table_update_count_ = args->update_count;
 	}
 
 	if (args->index != ZB_NWK_NBR_ITERATOR_INDEX_EOT) {
 		auto type = ZigbeeDeviceType::UNKNOWN;
 		auto relationship = ZigbeeNeighbourRelationship::UNKNOWN;
 
-		if (instance_->neighbour_table_update_count_ != args->update_count) {
+		if (neighbour_table_update_count_ != args->update_count) {
 			ESP_LOGD(TAG, "Neighbour table updated while reading");
-			instance_->new_neighbours_.reset();
-			instance_->schedule_after(instance_->refresh_neighbours_, 1000);
+			new_neighbours_.reset();
+			schedule_after(refresh_neighbours_, 1000);
 			return;
 		}
 
@@ -818,28 +829,28 @@ void ZigbeeDevice::refresh_neighbours_cb(uint8_t buffer) {
 		auto neighbour = ZigbeeNeighbour{ addr, type, entry->depth, relationship,
 			entry->lqi, entry->rssi, {} };
 		std::memcpy(neighbour.long_addr, entry->ieee_addr, sizeof(neighbour.long_addr));
-		instance_->new_neighbours_->emplace_back(std::move(neighbour));
+		new_neighbours_->emplace_back(std::move(neighbour));
 
 		args->index++;
 
 		zb_ret_t ret = zb_nwk_nbr_iterator_next(buffer, refresh_neighbours_cb);
 		if (ret != RET_OK) {
 			ESP_LOGE(TAG, "Error getting neighbour table (index=%d): %d", args->index, ret);
-			instance_->new_neighbours_.reset();
-			instance_->schedule_after(instance_->refresh_neighbours_, 1000);
+			new_neighbours_.reset();
+			schedule_after(refresh_neighbours_, 1000);
 		}
 	} else {
-		if (instance_->new_neighbours_) {
-			std::unique_lock lock{instance_->neighbours_mutex_};
-			auto neighbours = instance_->new_neighbours_;
-			instance_->neighbours_ = neighbours;
-			instance_->new_neighbours_.reset();
+		if (new_neighbours_) {
+			std::unique_lock lock{neighbours_mutex_};
+			auto neighbours = new_neighbours_;
+			neighbours_ = neighbours;
+			new_neighbours_.reset();
 			lock.unlock();
 
-			instance_->listener_.zigbee_neighbours_updated(neighbours);
+			listener_.zigbee_neighbours_updated(neighbours);
 		}
 
-		instance_->schedule_after(instance_->refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
+		schedule_after(refresh_neighbours_, REFRESH_NEIGHBOURS_MS);
 	}
 }
 

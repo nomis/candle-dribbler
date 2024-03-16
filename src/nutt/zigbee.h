@@ -217,7 +217,7 @@ private:
 
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
-	static esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
+	static esp_err_t action_handler_cb(esp_zb_core_action_callback_id_t callback_id, const void *data);
 	static void refresh_neighbours_cb(uint8_t buffer);
 	static void print_bindings_cb(uint8_t buffer);
 
@@ -228,7 +228,11 @@ private:
 	void cancel_retry();
 	void connected();
 	void disconnected();
+
+	esp_err_t action_handler(esp_zb_core_action_callback_id_t callback_id, const void *data);
 	void signal_handler(esp_zb_app_signal_type_t type, esp_err_t status, void *data);
+	void refresh_neighbours();
+	void refresh_neighbours(uint8_t buffer);
 
 	esp_err_t set_attr_value(const esp_zb_zcl_set_attr_value_message_t *message);
 	esp_err_t ota_upgrade(const esp_zb_zcl_ota_upgrade_value_message_t *message);
