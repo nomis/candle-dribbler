@@ -99,12 +99,7 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 		config.nwk_cfg.zed_cfg.keep_alive = 3000; /* milliseconds */
 	}
 
-	start_top_level_commissioning_ = std::make_shared<std::function<void()>>([this] {
-		if (state_ == ZigbeeState::RETRY) {
-			connect("retry", ESP_ZB_BDB_MODE_NETWORK_STEERING);
-		}
-	});
-
+	retry_connect_ = std::make_shared<std::function<void()>>([this] { retry_connect(); });
 	refresh_neighbours_ = std::make_shared<std::function<void()>>([this] { refresh_neighbours(); });
 
 	esp_zb_init(&config);
@@ -598,11 +593,17 @@ void ZigbeeDevice::retry(bool quiet) {
 		ESP_LOGD(TAG, "Retry");
 	}
 	update_state(ZigbeeState::RETRY);
-	schedule_after(start_top_level_commissioning_, 1000);
+	schedule_after(retry_connect_, 1000);
+}
+
+void ZigbeeDevice::retry_connect() {
+	if (state_ == ZigbeeState::RETRY) {
+		connect("retry", ESP_ZB_BDB_MODE_NETWORK_STEERING);
+	}
 }
 
 void ZigbeeDevice::cancel_retry() {
-	schedule_cancel(start_top_level_commissioning_);
+	schedule_cancel(retry_connect_);
 }
 
 void ZigbeeDevice::join_network() {

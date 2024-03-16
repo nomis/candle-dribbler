@@ -225,6 +225,7 @@ private:
 	void run_tasks();
 	void connect(const char *why, uint8_t mode);
 	void retry(bool quiet = false);
+	void retry_connect();
 	void cancel_retry();
 	void connected();
 	void disconnected();
@@ -247,7 +248,7 @@ private:
 	std::mutex tasks_mutex_;
 	std::condition_variable tasks_cv_;
 	std::multimap<std::chrono::time_point<clock>,std::shared_ptr<std::function<void()>>> tasks_;
-	std::shared_ptr<std::function<void()>> start_top_level_commissioning_;
+	std::shared_ptr<std::function<void()>> retry_connect_;
 	std::shared_ptr<std::function<void()>> refresh_neighbours_;
 
 	ZigbeeListener &listener_;
