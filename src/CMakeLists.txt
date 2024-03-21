@@ -46,9 +46,5 @@ target_link_libraries(
 	${COMPONENT_LIB}
 	INTERFACE
 	-Wl,--undefined=__wrap_zb_zcl_send_report_attr_command
-	-Wl,--undefined=__wrap_zb_abort
-	-Wl,--undefined=__wrap_zb_assert
-	-Wl,--wrap=zb_abort
-	-Wl,--wrap=zb_assert
 	-Wl,--wrap=zb_zcl_send_report_attr_command
 )
