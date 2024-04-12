@@ -215,6 +215,7 @@ public:
 private:
 	using clock = std::chrono::steady_clock;
 
+	static constexpr uint16_t BINDING_TABLE_SIZE = 64;
 	static constexpr uint32_t REFRESH_NEIGHBOURS_MS = 60000;
 
 	static esp_err_t action_handler_cb(esp_zb_core_action_callback_id_t callback_id, const void *data);

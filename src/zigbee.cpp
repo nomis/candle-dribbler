@@ -102,9 +102,11 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 	retry_connect_ = std::make_shared<std::function<void()>>([this] { retry_connect(); });
 	refresh_neighbours_ = std::make_shared<std::function<void()>>([this] { refresh_neighbours(); });
 
-#if CONFIG_ESP_ZB_TRACE_ENABLE
+#if CONFIG_ZB_DEBUG_MODE
 	esp_zb_set_trace_level_mask(ESP_ZB_TRACE_LEVEL_CRITICAL, 0);
 #endif
+	esp_zb_aps_src_binding_table_size_set(BINDING_TABLE_SIZE);
+	esp_zb_aps_dst_binding_table_size_set(BINDING_TABLE_SIZE);
 	esp_zb_init(&config);
 
 	endpoint_list_ = esp_zb_ep_list_create();
