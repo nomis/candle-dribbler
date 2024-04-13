@@ -118,7 +118,7 @@ Device::Device(UserInterface &ui) : WakeupThread("Device", true), ui_(ui),
 	zigbee_.add(*new ZigbeeEndpoint{UPLINK_RSSI_EP_ID, ESP_ZB_AF_HA_PROFILE_ID,
 			ESP_ZB_HA_ON_OFF_LIGHT_DEVICE_ID, {rssi_cl_}});
 
-	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
+	reload_core_dump_status();
 	ui_.core_dump(core_dump_present_);
 }
 
@@ -230,53 +230,76 @@ void Device::print_neighbours() {
 	}
 }
 
+void Device::reload_core_dump_status() {
+	const esp_partition_t *part = esp_partition_find_first(
+		ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+		nullptr);
+	uint32_t size;
+
+	if (!part || esp_partition_read(part, 0, &size, sizeof(size)))
+		return;
+
+	core_dump_present_ = size != UINT32_MAX;
+}
+
 void Device::print_core_dump(bool full) {
-	esp_err_t err = esp_core_dump_image_check();
+	const esp_partition_t *part = esp_partition_find_first(
+		ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
+		nullptr);
+	esp_err_t err;
+	uint32_t size;
 
-	if (err == ESP_OK) {
-		if (full) {
-			const esp_partition_t *part = esp_partition_find_first(
-				ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_COREDUMP,
-				nullptr);
-			uint32_t size;
-
-			if (esp_partition_read(part, 0, &size, sizeof(size)))
-				return;
-
-			printf("================= CORE DUMP START =================\n");
-			for (size_t offset = 0; offset < size; ) {
-				char data[48] = { 0 };
-				size_t remaining = std::min(static_cast<uint32_t>(sizeof(data)), size - offset);
-
-				if (esp_partition_read(part, offset, data, remaining))
-					break;
-
-				std::shared_ptr<char> buf(base64_encode(data, remaining, nullptr), free);
-				printf("%s", buf.get());
-
-				offset += sizeof(data);
-			}
-			printf("================= CORE DUMP END ===================\n");
-		} else {
-			std::shared_ptr<esp_core_dump_summary_t> summary(
-				static_cast<decltype(summary)::element_type*>(
-					calloc(1, sizeof(decltype(summary)::element_type))), free);
-
-			err = esp_core_dump_get_summary(summary.get());
-			if (err == ESP_OK) {
-				ESP_LOGI(TAG, "PC: %08" PRIx32, summary->exc_pc);
-				ESP_LOGI(TAG, "Task: %s", summary->exc_task);
-			}
-		}
-	} else if (err == ESP_ERR_NOT_FOUND) {
+	if (!part) {
 		ESP_LOGI(TAG, "Core dump partition not found");
-	} else {
-		ESP_LOGI(TAG, "No core dump: %d", err);
-	}
+	} else if ((err = esp_partition_read(part, 0, &size, sizeof(size)))) {
+		ESP_LOGI(TAG, "Unable to read core dump partition: %d", err);
+	} else if (size == UINT32_MAX) {
+		ESP_LOGI(TAG, "No core dump");
+	} else if (full) {
+		if (size > part->size) {
+			ESP_LOGE(TAG, "Core dump too large: %" PRIu32 " > %" PRIu32, size, part->size);
+			size = part->size;
+		}
+		if ((err = esp_core_dump_image_check())) {
+			ESP_LOGE(TAG, "Core dump invalid: %d", err);
+		}
 
-	if (core_dump_present_ != (err == ESP_OK)) {
-		core_dump_present_ = err == ESP_OK;
-		ui_.core_dump(core_dump_present_);
+		// Increase watchdog timeout
+		esp_task_wdt_config_t twdt_config = {
+			.timeout_ms = 60 * 1000,
+			.idle_core_mask = 0,
+			.trigger_panic = true,
+		};
+		ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+
+		printf("================= CORE DUMP START =================\n");
+		for (size_t offset = 0; offset < size; ) {
+			char data[48] = { 0 };
+			size_t remaining = std::min(static_cast<uint32_t>(sizeof(data)), size - offset);
+
+			if (esp_partition_read(part, offset, data, remaining))
+				break;
+
+			std::shared_ptr<char> buf(base64_encode(data, remaining, nullptr), free);
+			printf("%s", buf.get());
+
+			offset += sizeof(data);
+		}
+		printf("================= CORE DUMP END ===================\n");
+
+		// Restore watchdog timeout
+		twdt_config.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+		ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
+	} else {
+		std::shared_ptr<esp_core_dump_summary_t> summary(
+			static_cast<decltype(summary)::element_type*>(
+				calloc(1, sizeof(decltype(summary)::element_type))), free);
+
+		err = esp_core_dump_get_summary(summary.get());
+		if (err == ESP_OK) {
+			ESP_LOGI(TAG, "PC: %08" PRIx32, summary->exc_pc);
+			ESP_LOGI(TAG, "Task: %s", summary->exc_task);
+		}
 	}
 }
 
@@ -291,7 +314,7 @@ void Device::erase_core_dump() {
 		ESP_LOGI(TAG, "Core dump erase error: %d", err);
 	}
 
-	core_dump_present_ = esp_core_dump_image_check() == ESP_OK;
+	reload_core_dump_status();
 	ui_.core_dump(core_dump_present_);
 
 	zigbee_.reschedule(uptime_task_);
