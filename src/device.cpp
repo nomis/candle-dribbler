@@ -265,11 +265,12 @@ void Device::print_core_dump(bool full) {
 		}
 
 		// Increase watchdog timeout
-		esp_task_wdt_config_t twdt_config = {
-			.timeout_ms = 60 * 1000,
-			.idle_core_mask = 0,
-			.trigger_panic = true,
-		};
+		esp_task_wdt_config_t twdt_config{};
+
+		twdt_config.timeout_ms = 60 * 1000;
+		twdt_config.idle_core_mask = 0;
+		twdt_config.trigger_panic = true;
+
 		ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&twdt_config));
 
 		printf("================= CORE DUMP START =================\n");

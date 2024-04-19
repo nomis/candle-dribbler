@@ -59,13 +59,13 @@ Light::Light(uint8_t index, gpio_num_t switch_pin, bool switch_active_low,
 		secondary_cl_(*new light::SecondaryCluster{*this}),
 		switch_status_cl_(*new light::SwitchStatusCluster{*this}),
 		temporary_enable_cl_(*new light::TemporaryEnableCluster{*this}) {
-	gpio_config_t relay_config = {
-		.pin_bit_mask = 1ULL << relay_pin_,
-		.mode = GPIO_MODE_OUTPUT,
-		.pull_up_en = GPIO_PULLUP_DISABLE,
-		.pull_down_en = GPIO_PULLDOWN_DISABLE,
-		.intr_type = GPIO_INTR_DISABLE,
-	};
+	gpio_config_t relay_config{};
+
+	relay_config.pin_bit_mask = 1ULL << relay_pin_;
+	relay_config.mode = GPIO_MODE_OUTPUT;
+	relay_config.pull_up_en = GPIO_PULLUP_DISABLE;
+	relay_config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	relay_config.intr_type = GPIO_INTR_DISABLE;
 
 	ESP_ERROR_CHECK(gpio_set_level(relay_pin_, relay_inactive()));
 	ESP_ERROR_CHECK(gpio_config(&relay_config));

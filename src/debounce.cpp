@@ -33,13 +33,13 @@ Debounce::Debounce(gpio_num_t pin, bool active_low,
 		: press_duration_us_(press_duration_us),
 		release_duration_us_(release_duration_us),
 		pin_(pin), active_low_(active_low) {
-	gpio_config_t config = {
-		.pin_bit_mask = 1ULL << pin_,
-		.mode = GPIO_MODE_INPUT,
-		.pull_up_en = active_low_ ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE,
-		.pull_down_en = active_low_ ? GPIO_PULLDOWN_DISABLE : GPIO_PULLDOWN_ENABLE,
-		.intr_type = GPIO_INTR_DISABLE,
-	};
+	gpio_config_t config{};
+
+	config.pin_bit_mask = 1ULL << pin_,
+	config.mode = GPIO_MODE_INPUT;
+	config.pull_up_en = active_low_ ? GPIO_PULLUP_ENABLE : GPIO_PULLUP_DISABLE;
+	config.pull_down_en = active_low_ ? GPIO_PULLDOWN_DISABLE : GPIO_PULLDOWN_ENABLE;
+	config.intr_type = GPIO_INTR_DISABLE;
 
 	ESP_ERROR_CHECK(gpio_config(&config));
 	change_state_ = (state_ = gpio_get_level(pin_));
