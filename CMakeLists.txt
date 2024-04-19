@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.16.0)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 set(EXTRA_COMPONENT_DIRS src)
+idf_build_set_property(DEPENDENCIES_LOCK dependencies.lock.${IDF_TARGET})
 project(candle-dribbler)
 
 idf_build_get_property(build_dir BUILD_DIR)
