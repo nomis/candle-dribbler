@@ -1,5 +1,5 @@
-Candle Dribbler
-===============
+Candle Dribbler |Build Status|
+==============================
 
 ESP32 Zigbee multi-channel light controller.
 
@@ -329,3 +329,5 @@ The sensor cluster endpoints are in the following order:
    * - Binaryinput
      - 1n
      - Switch N
+
+.. |Build Status| image:: https://jenkins.uuid.uk/buildStatus/icon?job=candle-dribbler%2Fmain
