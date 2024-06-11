@@ -24,6 +24,8 @@
 
 #include <memory>
 
+extern "C" esp_log_level_t esp_log_default_level;
+
 namespace nutt {
 
 class Logging {
