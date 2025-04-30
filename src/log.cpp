@@ -52,7 +52,9 @@ const char* Logging::to_string(esp_log_level_t level) {
 	case ESP_LOG_INFO: level_str = "INFO"; break;
 	case ESP_LOG_DEBUG: level_str = "DEBUG"; break;
 	case ESP_LOG_VERBOSE: level_str = "VERBOSE"; break;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 4, 0)
 	case ESP_LOG_MAX: level_str = "ALL"; break;
+#endif
 	}
 
 	return level_str;
