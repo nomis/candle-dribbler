@@ -1,6 +1,6 @@
 /*
  * candle-dribbler - ESP32 Zigbee light controller
- * Copyright 2023-2024  Simon Arlott
+ * Copyright 2023-2025  Simon Arlott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -81,8 +81,8 @@ ZigbeeDevice::ZigbeeDevice(ZigbeeListener &listener) : listener_(listener) {
 
 	esp_zb_platform_config_t platform_config{};
 
-	platform_config.radio_config.radio_mode = RADIO_MODE_NATIVE;
-	platform_config.host_config.host_connection_mode = HOST_CONNECTION_MODE_NONE;
+	platform_config.radio_config.radio_mode = ZB_RADIO_MODE_NATIVE;
+	platform_config.host_config.host_connection_mode = ZB_HOST_CONNECTION_MODE_NONE;
 
 	ESP_ERROR_CHECK(esp_zb_platform_config(&platform_config));
 
@@ -145,7 +145,7 @@ void ZigbeeDevice::start() {
 }
 
 void ZigbeeDevice::run_main() {
-	esp_zb_main_loop_iteration();
+	esp_zb_stack_main_loop();
 	assert(false);
 }
 

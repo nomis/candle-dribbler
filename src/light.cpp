@@ -1,6 +1,6 @@
 /*
  * candle-dribbler - ESP32 Zigbee light controller
- * Copyright 2023-2024  Simon Arlott
+ * Copyright 2023-2025  Simon Arlott
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -435,11 +435,12 @@ void BooleanCluster::configure_binary_input_cluster_list(esp_zb_cluster_list_t &
 	esp_zb_binary_input_cluster_cfg_t input_cfg = {
 		.out_of_service = 0,
 		.status_flags = 0,
+		.present_value = refresh_value(),
 	};
 
-	esp_zb_attribute_list_t *input_cluster = esp_zb_binary_input_cluster_create(&input_cfg);
+	state_ = input_cfg.present_value ? 1 : 0;
 
-	state_ = refresh_value() ? 1 : 0;
+	esp_zb_attribute_list_t *input_cluster = esp_zb_binary_input_cluster_create(&input_cfg);
 
 	ESP_ERROR_CHECK(esp_zb_binary_input_cluster_add_attr(input_cluster,
 			ESP_ZB_ZCL_ATTR_BINARY_INPUT_PRESENT_VALUE_ID, &state_));

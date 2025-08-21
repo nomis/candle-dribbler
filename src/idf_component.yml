@@ -1,6 +1,6 @@
 dependencies:
-  espressif/esp-zigbee-lib: "1.2.3"
-  espressif/esp-zboss-lib: "1.2.3"
+  espressif/esp-zigbee-lib: "1.6.6"
+  espressif/esp-zboss-lib: "1.6.4"
   espressif/led_strip: "2.5.2"
   espressif/zlib: "~1.2.13"
   idf:
