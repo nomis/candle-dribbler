@@ -90,8 +90,8 @@ UserInterface::UserInterface(Logging &logging, gpio_num_t network_join_pin,
 
 	led_strip_config.max_leds = 1;
 	led_strip_config.strip_gpio_num = 8;
-	led_strip_config.led_pixel_format = LED_PIXEL_FORMAT_GRB;
 	led_strip_config.led_model = LED_MODEL_WS2812;
+	led_strip_config.color_component_format = LED_STRIP_COLOR_COMPONENT_FMT_GRB;
 	rmt_config.resolution_hz = 10 * 1000 * 1000;
 
 	ESP_ERROR_CHECK(led_strip_new_rmt_device(&led_strip_config, &rmt_config, &led_strip_));
