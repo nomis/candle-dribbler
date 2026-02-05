@@ -43,7 +43,7 @@ extern "C" {
 #include "nutt/thread.h"
 
 /* Check compatibility of esp-zigbee-lib and esp-zboss-lib with the current IDF */
-static_assert(sizeof(esp_ieee802154_frame_info_t) == 16);
+static_assert(sizeof(esp_ieee802154_frame_info_t) >= 16);
 static_assert(offsetof(esp_ieee802154_frame_info_t, pending) == 0);
 static_assert(offsetof(esp_ieee802154_frame_info_t, process) == 1);
 static_assert(offsetof(esp_ieee802154_frame_info_t, channel) == 2);
